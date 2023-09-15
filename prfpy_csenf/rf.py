@@ -226,7 +226,6 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     crf_exp = kwargs.get('crf_exp', 1)                  # 1
     scaling_factor = kwargs.get('scaling_factor', 1)    # 1
     return_curve = kwargs.get('return_curve', False)
-
     # CONVERT sf0 and maxC
     log_sf0 = np.log10(sf0)
     log_maxC = np.log10(maxC)
@@ -238,7 +237,8 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     width_r     = np.reshape(width_r, (1,1,n_RFs))  
     log_sf0     = np.reshape(log_sf0, (1,1,n_RFs))
     log_maxC    = np.reshape(log_maxC, (1,1,n_RFs))
-    width_l     = np.reshape(width_l, (1,1,n_RFs))    
+    width_l     = np.reshape(width_l, (1,1,n_RFs))
+    crf_exp     = np.reshape(crf_exp, (1,1,n_RFs))    
     
     # Split the stimulus space into L & R of the sf0
     id_SF_left  = log_sfs_gr <  log_sf0
@@ -260,38 +260,16 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
         con_gr = 100/con_s_gr       # from contrast sensitivity -> contrast
         c_curve = 100/csf_curve     # from contrast sensitivity -> contrast        
         c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
-        
+        # print(con_gr.shape)
+        # print(crf_exp.shape)
+        # print('bleep')
+        # bloop
         csf_rfs = scaling_factor * (con_gr**crf_exp / (con_gr**crf_exp + c_curve**crf_exp))
 
 
     elif edge_type=='binary':
         # Simple binary version. Contrast level below the curve is 1, anything above it is 0
         csf_rfs = con_s_gr<=csf_curve
-
-
-    # import matplotlib.pyplot as plt
-    # id_non = csf_rfs.sum((0,1))!=0
-    # rf_x = log_SF_grid.ravel()
-    # rf_y = CON_S_grid.ravel()
-    # for i in np.where(id_non)[0]:
-    #     print(i)
-    #     xmin  = np.min(log_SF_grid) * .9
-    #     xmax  = np.max(log_SF_grid) * 1.1
-    #     ymin  = np.min(CON_S_grid)  * .9
-    #     ymax  = np.max(CON_S_grid)  * 1.1  
-    #     plt.figure()
-    #     this_rf = csf_rfs[:,:,i].ravel() * 1.0
-    #     plt.plot(log_SF_grid[0,:], csf_curve[:,i], 'k', linewidth=10, alpha=.5)
-    #     plt.scatter(rf_x, rf_y, c=this_rf,vmin=0, vmax=1, cmap='seismic')
-    #     # plt.xlim(xmin,xmax)
-    #     # plt.ylim(ymin,ymax)
-    #     plt.yscale('log')
-    #     # plt.imshow(,)
-    #     # plt.gca().set_aspect(.010)
-    #     plt.show()
-    #     plt.figure()
-    #     plt.plot(csf_rfs[:,:,i])
-    #     plt.show()
 
     # Reshape...
     csf_rfs = np.moveaxis(csf_rfs, -1, 0)

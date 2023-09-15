@@ -1896,6 +1896,7 @@ class CSenFFitter(Fitter):
                  sf0_grid, 
                  maxC_grid, 
                  width_l_grid,
+                 crf_exp_grid,
                  verbose=False,
                  n_batches=1,
                  fixed_grid_baseline=None,
@@ -1916,7 +1917,9 @@ class CSenFFitter(Fitter):
         maxC_grid : 1D ndarray
             array of maxC values in a grid
         width_l_grid : 1D ndarray
-            array of width_l values in a grid            
+            array of width_l values in a grid 
+        crf_exp_grid : 1D ndarray
+            array of crf_exp values in a grid
         verbose : boolean, optional
             print output. The default is False.
         n_batches : int, optional
@@ -1946,12 +1949,12 @@ class CSenFFitter(Fitter):
         """
         # setting up grid for params
         if hrf_1_grid is None or hrf_2_grid is None:
-            width_r, sf0, maxC, width_l =  np.meshgrid(width_r_grid, sf0_grid, maxC_grid, width_l_grid)
+            width_r, sf0, maxC, width_l, crf_exp =  np.meshgrid(width_r_grid, sf0_grid, maxC_grid, width_l_grid, crf_exp_grid)
             self.hrf_1 = None
             self.hrf_2 = None
         else:
-            width_r, sf0, maxC, width_l, hrf_1, hrf_2 =  np.meshgrid(
-                width_r_grid, sf0_grid, maxC_grid, width_l_grid, hrf_1_grid, hrf_2_grid
+            width_r, sf0, maxC, width_l, crf_exp, hrf_1, hrf_2 =  np.meshgrid(
+                width_r_grid, sf0_grid, maxC_grid, width_l_grid, crf_exp_grid, hrf_1_grid, hrf_2_grid
                 )
             self.hrf_1 = hrf_1.ravel()
             self.hrf_2 = hrf_2.ravel()                
@@ -1960,7 +1963,7 @@ class CSenFFitter(Fitter):
         self.sf0      = sf0.ravel()       
         self.maxC     = maxC.ravel()       
         self.width_l  = width_l.ravel()
-        
+        self.crf_exp  = crf_exp.ravel()
         self.n_predictions = len(self.width_r)
 
         self.grid_predictions = self.model.create_grid_predictions(
@@ -1968,6 +1971,7 @@ class CSenFFitter(Fitter):
             self.sf0,
             self.maxC,
             self.width_l,
+            self.crf_exp,
             self.hrf_1,
             self.hrf_2)            
                     
@@ -2055,6 +2059,7 @@ class CSenFFitter(Fitter):
                 self.sf0[max_rsqs],
                 self.maxC[max_rsqs],
                 self.width_l[max_rsqs],
+                self.crf_exp[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
                 self.hrf_1[max_rsqs],
@@ -2067,6 +2072,7 @@ class CSenFFitter(Fitter):
                 self.sf0[max_rsqs],
                 self.maxC[max_rsqs],
                 self.width_l[max_rsqs],
+                self.crf_exp[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
                 self.model.hrf_params[1] * np.ones(self.n_units),

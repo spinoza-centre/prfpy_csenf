@@ -902,6 +902,7 @@ class CSenFModel(Model):
                                 sf0, 
                                 maxC, 
                                 width_l,
+                                crf_exp, # crf_exp
                                 hrf_1=None,
                                 hrf_2=None):
         """create_predictions
@@ -926,6 +927,7 @@ class CSenFModel(Model):
                                       sf0,
                                       maxC,
                                       width_l,
+                                      crf_exp, 
                                       1.0*np.ones(n_predictions),
                                       0.0*np.ones(n_predictions),                                     
                                       hrf_1,
@@ -938,6 +940,7 @@ class CSenFModel(Model):
                           sf0,
                           maxC,
                           width_l,                          
+                          crf_exp,
                           beta,
                           baseline,
                           hrf_1=None,
@@ -954,6 +957,7 @@ class CSenFModel(Model):
         sf0   *** float
         maxC   *** float
         width_l   *** float
+        crf_exp *** float
         beta : float
             amplitude of pRF
         baseline : float
@@ -978,7 +982,8 @@ class CSenFModel(Model):
             width_r=width_r, 
             sf0=sf0, 
             maxC=maxC, 
-            width_l=width_l
+            width_l=width_l,
+            crf_exp=crf_exp,
             )
         # create the single rf
         dm = self.stimulus.design_matrix
