@@ -230,7 +230,7 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     log_sf0 = np.log10(sf0)
     log_maxC = np.log10(maxC)
     log_sfs_gr = np.moveaxis(np.tile(log_SF_grid, (n_RFs, 1,1)), 0, -1)
-    con_s_gr = np.moveaxis(np.tile(CON_S_grid, (n_RFs, 1,1)), 0, -1)
+    con_s_gr = np.moveaxis(np.tile(CON_S_grid, (n_RFs, 1,1)), 0, -1) 
 
     # Reshape RF parameters 
 
@@ -244,8 +244,8 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     id_SF_left  = log_sfs_gr <  log_sf0
     id_SF_right = log_sfs_gr >= log_sf0
     # Create the curves    
-    L_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_l**2))
-    R_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_r**2))
+    L_curve = L_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_l**2))
+    R_curve = R_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_r**2))
     csf_curve = np.zeros_like(L_curve)
     csf_curve[id_SF_left] = L_curve[id_SF_left]
     csf_curve[id_SF_right] = R_curve[id_SF_right]

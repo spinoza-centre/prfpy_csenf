@@ -257,16 +257,35 @@ class CSenFStimulus(object):
         self.n_SF = SFs.shape[0]
         self.n_CON = CONs.shape[0]
         self.n_TRs = SF_seq.shape[0]
-        # Grids:
+        # Grids: true values
         self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)        
         self.log_SF_grid, self.CON_S_grid = np.meshgrid(self.log_SFs, self.CON_Ss)
-        self.dx = 1 # ********* TO FIX & CLARIFY
+        
+        # Grids: different SF and CON levels 
+        # i.e., 0 empty, 1 = lowest SF, 2 = 2nd lowest SF, etc.
+        # 0 empty, 1 = lowest CON, 2 = 2nd lowest CON, etc.
+        SF_grid_id, CON_grid_id = np.meshgrid(np.arange(1,self.n_SF+1), np.arange(1,self.n_CON+1)) 
+        # Round the values, so that we can match them to the rounded SF_seq, CON_seq (don't want to accidently miss a match, because not exact value)
+        SFs_rnd = np.round(self.SFs, 3)     
+        CONs_rnd = np.round(self.CONs, 3)   
+        SF_seq_rnd = np.round(self.SF_seq, 3)
+        CON_seq_rnd = np.round(self.CON_seq, 3)
+        SF_seq_id = np.zeros_like(SF_seq_rnd, dtype=int)        
+        for i,SF in enumerate(SFs_rnd):
+            SF_seq_id[SF_seq_rnd==SF] = i+1
+        CON_seq_id = np.zeros_like(CON_seq_rnd, dtype=int)
+        for i,CON in enumerate(CONs_rnd):
+            CON_seq_id[CON_seq_rnd==CON] = i+1
+
+
         # Create the design matrix (n SFS, n CON, n Timepoints)
-        self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)
         dm = np.zeros((self.n_CON, self.n_SF, self.n_TRs))
         for i in range(self.n_TRs):
-            if self.CON_seq[i]>0:
-                this_frame = (self.SF_grid==self.SF_seq[i]) & (self.CON_grid==self.CON_seq[i]) # CHANGE FROM= TO <=
+            if CON_seq_id[i]!=0:
+                this_frame = (SF_grid_id==SF_seq_id[i]) & (CON_grid_id==CON_seq_id[i])
+                if this_frame.sum()==0:
+                    print(self.SF_seq[i], self.CON_seq[i])
+                    bloop
                 dm[:,:,i] = np.copy(this_frame)
         
         self.design_matrix = dm
