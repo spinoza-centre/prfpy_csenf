@@ -198,18 +198,17 @@ class CFStimulus(object):
 # CSenF functions
 # (Contrast Sensitivity Function)
 class CSenFStimulus(object):
-    """CSenFStimulus
-
-    CSenF stimulus creates a design matrix, used for fitting with CSenF model
-    Actual stimuli presented to subjects are gratings of different spatial frequency and contrast levels
-    We convert this into a binary design matrix of SF x Contrast x Time
-    
+    """CSenFStimulus    
+    CSenF stimulus creates a design matrix, used for fitting with CSenF model    
+    * Actual stimuli presented to subjects are gratings of different spatial frequency and contrast levels
+    * Current implementation assumes discrete SF and contrast levels
+    * Design matrix is a binary matrix of SF levels x Contrast levels x Time
+    * i.e., if at timepoint x, the SF level=1, and the contrast level=2, then design_matrix[0,1]=1 Everywhere else=0
+    It also stores other useful information, which will be used in the CSenFModel class 
 
     """
 
     def __init__(self,
-                 SFs,
-                 CONs,
                  SF_seq,
                  CON_seq,                
                  TR,
@@ -222,10 +221,6 @@ class CSenFStimulus(object):
 
         Parameters
         ----------
-        SFs : np.ndarray
-            The set of unique SF values
-        CONs : np.ndarray
-            The set of unique contrast values
         SF_seq : np.ndarray (1 for each timepoint)
             Sequence of SF values in stimulus
         CON_seq : np.ndarray (1 for each timepoint)
@@ -244,56 +239,64 @@ class CSenFStimulus(object):
             containing the TR indices used to compute the BOLD baseline for each task.
             The default is None.
         """
-        self.SFs = SFs
-        self.log_SFs = np.log10(SFs)
-        self.CONs = CONs
-        self.CON_Ss = 100/CONs # contrast sensitivity
-        self.SF_seq = SF_seq
-        self.log_SF_seq = np.log10(SF_seq)        
-        self.CON_seq = CON_seq
-        self.CON_S_seq = 100/CON_seq 
+        # [1] Save input values
+        self.SF_seq     = SF_seq
+        self.CON_seq    = CON_seq
         self.TR = TR
+        # *** legacy, mainly obsolete kept for consistency w/ other prfpy components ***
+        self.task_lengths = task_lengths
+        self.task_names = task_names
+        self.late_iso_dict = late_iso_dict
+        self.dx = 1
+        # *** ***
         
-        self.n_SF = SFs.shape[0]
-        self.n_CON = CONs.shape[0]
-        self.n_TRs = SF_seq.shape[0]
-        # Grids: true values
+        # [2] log versions
+        self.log_SF_seq = np.log10(self.SF_seq)                
+        self.CON_S_seq  = 100/self.CON_seq # fix divide by zero        
+        
+        # [3] Get the unique values, sorted in ascending order, excluding 0
+        self.SFs = np.unique(self.SF_seq)
+        self.SFs = self.SFs[self.SFs!=0]
+        self.CONs = np.unique(self.CON_seq)
+        self.CONs = self.CONs[self.CONs!=0]        
+        self.log_SFs = np.log10(self.SFs)   # unique SF in log
+        self.CON_Ss = 100/self.CONs         # unique contrast sensitivity
+        # -> number of discrete levels (used for design matrix) and number of timepoints
+        self.n_SF   = self.SFs.shape[0]
+        self.n_CON  = self.CONs.shape[0]
+        self.n_TRs = SF_seq.shape[0]        
+        print(f'Number of unique SF levels: {self.n_SF}, {np.round(self.SFs, 3)}')
+        print(f'Number of unique CON levels: {self.n_CON}, {np.round(self.CONs, 3)}')
+        print(f'Number of timepoints: {self.n_TRs}')
+        
+        # Grids: true values. Used in making the RFs and CSF curves (see .rf.csenf_exponential)
         self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)        
         self.log_SF_grid, self.CON_S_grid = np.meshgrid(self.log_SFs, self.CON_Ss)
         
-        # Grids: different SF and CON levels 
-        # i.e., 0 empty, 1 = lowest SF, 2 = 2nd lowest SF, etc.
-        # 0 empty, 1 = lowest CON, 2 = 2nd lowest CON, etc.
-        SF_grid_id, CON_grid_id = np.meshgrid(np.arange(1,self.n_SF+1), np.arange(1,self.n_CON+1)) 
-        # Round the values, so that we can match them to the rounded SF_seq, CON_seq (don't want to accidently miss a match, because not exact value)
-        SFs_rnd = np.round(self.SFs, 3)     
-        CONs_rnd = np.round(self.CONs, 3)   
-        SF_seq_rnd = np.round(self.SF_seq, 3)
-        CON_seq_rnd = np.round(self.CON_seq, 3)
-        SF_seq_id = np.zeros_like(SF_seq_rnd, dtype=int)        
-        for i,SF in enumerate(SFs_rnd):
-            SF_seq_id[SF_seq_rnd==SF] = i+1
-        CON_seq_id = np.zeros_like(CON_seq_rnd, dtype=int)
-        for i,CON in enumerate(CONs_rnd):
-            CON_seq_id[CON_seq_rnd==CON] = i+1
-
+        # Grids: levels (1, 2, 3, etc.) Used in making the design matrix 
+        # >> 0 empty, 1 = lowest  SF, 2 = 2nd lowest  SF, etc.
+        # >> 0 empty, 1 = lowest CON, 2 = 2nd lowest CON, etc.
+        self.SF_grid_id, self.CON_grid_id = np.meshgrid(np.arange(1,self.n_SF+1), np.arange(1,self.n_CON+1)) 
+        # Create the sequences, but in terms of levels
+        self.SF_seq_id = np.zeros_like(self.SF_seq, dtype=int)
+        for i,SF in enumerate(self.SFs):
+            self.SF_seq_id[self.SF_seq==SF] = i+1 # Assign the level to the corresponding SF
+        self.CON_seq_id = np.zeros_like(self.CON_seq, dtype=int)
+        for i,CON in enumerate(self.CONs):
+            self.CON_seq_id[self.CON_seq==CON] = i+1
 
         # Create the design matrix (n SFS, n CON, n Timepoints)
         dm = np.zeros((self.n_CON, self.n_SF, self.n_TRs))
         for i in range(self.n_TRs):
-            if CON_seq_id[i]!=0:
-                this_frame = (SF_grid_id==SF_seq_id[i]) & (CON_grid_id==CON_seq_id[i])
+            if self.CON_seq_id[i]!=0:
+                this_frame = (self.SF_grid_id==self.SF_seq_id[i]) & (self.CON_grid_id==self.CON_seq_id[i])
                 if this_frame.sum()==0:
                     print(self.SF_seq[i], self.CON_seq[i])
-                    bloop
+                    print('*** ERROR ***')
+                    
                 dm[:,:,i] = np.copy(this_frame)
         
         self.design_matrix = dm
 
-        # other useful stimulus properties [mainly obsolete]
-        self.task_lengths = task_lengths
-        self.task_names = task_names
-        self.late_iso_dict = late_iso_dict
 
-        # stimulus dx: again legacy
-        self.dx = 1
+

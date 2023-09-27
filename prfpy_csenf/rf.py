@@ -189,12 +189,18 @@ def gauss2D_logpolar(ecc, polar, mu=(1.0, 0.0), sigma=1.0, kappa=1.0):
 def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kwargs):
     '''
     Python version written by Marcus Daghlian, translated from matlab original (credit Carlien Roelofzen) 
+    Note now we generally fit CRF as well 
 
-    Create a 2D exponential surface for CSenF fitting
-    log_SF_grid        : grid of log10 SF values
+    Takes a set of parameters determining the CSF (& CRF), and projects these onto a matrix representing log spatial frequency and contrast sensitivity
+    Conceptually akin to a receptive field, but in SF-contrast space, not visual (x,y) space
+    
+    inputs:
+    -------
+    
+    log_SF_grid        : grid of log10 SF values 
     CON_S_grid         : grid of 100/contrast sensitivity values 
-    # ***
-    width_r    : width of CSF function, curvature of the parabolic
+    ***
+    width_r     : width of CSF function, curvature of the parabolic
                 function (larger values mean narrower function)
                 width is the right side of the curve (width_right)                
     sf0        : spatial frequency with peak sensitivity  
@@ -207,7 +213,7 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
                 If you want to fix the values to (=0.4480), it is better to do this outside the function 
                 'ratio' overwrites width_l to be a function of width_r. (=0.5308.*widht_right)
     edge_type   : 'CRF' (default),'gauss', 'binary' 
-    crf_exp     : exponent for the smooth rf (CRF) default = 1
+    crf_exp     : exponent for the smooth rf (CRF) default = 1.                 
     scaling_factor : scaling factor for CRF, default = 1
     return_curve    : bool, return the curve as well (default false)
     '''
@@ -249,22 +255,18 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     csf_curve = np.zeros_like(L_curve)
     csf_curve[id_SF_left] = L_curve[id_SF_left]
     csf_curve[id_SF_right] = R_curve[id_SF_right]
-    csf_curve = csf_curve[0,:,:]
     # edge_type = 'binary'
     if edge_type=='CRF':
         # Smooth Contrast Response Function (CRF) 
+        # Standard Naka-Rushton function, as used by Wietske Zuiderbaan and Boynton (1999).
         # >> R(C) = C^q / (C^q + Q^q) 
         # >> Q determines where R=0.5 (we use the csf_curve)
         # >> q determines the slope (see crf_exp)
         # Note we want contrasts, not 100/contrast, so we need to do this... 
         con_gr = 100/con_s_gr       # from contrast sensitivity -> contrast
         c_curve = 100/csf_curve     # from contrast sensitivity -> contrast        
-        c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
-        # print(con_gr.shape)
-        # print(crf_exp.shape)
-        # print('bleep')
-        # bloop
-        csf_rfs = scaling_factor * (con_gr**crf_exp / (con_gr**crf_exp + c_curve**crf_exp))
+        # c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
+        csf_rfs = scaling_factor * ((con_gr**crf_exp) / (con_gr**crf_exp + c_curve**crf_exp))
 
 
     elif edge_type=='binary':
@@ -275,6 +277,6 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     csf_rfs = np.moveaxis(csf_rfs, -1, 0)
 
     if return_curve:
-        return csf_rfs, csf_curve
+        return csf_rfs, csf_curve[0,:,:]
 
     return csf_rfs
