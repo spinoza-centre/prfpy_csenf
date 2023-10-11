@@ -519,8 +519,8 @@ class Iso2DGaussianFitter(Fitter):
                 self.sizes[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
-                self.model.hrf_params[1] * np.ones(self.n_units),
-                self.model.hrf_params[2] * np.ones(self.n_units),
+                # self.model.hrf_params[1] * np.ones(self.n_units),
+                # self.model.hrf_params[2] * np.ones(self.n_units),
                 self.gridsearch_r2
             ]).T            
 
@@ -2075,8 +2075,8 @@ class CSenFFitter(Fitter):
                 self.crf_exp[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
-                self.model.hrf_params[1] * np.ones(self.n_units),
-                self.model.hrf_params[2] * np.ones(self.n_units),
+                # np.nan * np.ones(self.n_units),#self.model.hrf_params[1] * np.ones(self.n_units),
+                # np.nan * np.ones(self.n_units),#self.model.hrf_params[2] * np.ones(self.n_units),
                 self.gridsearch_r2
             ]).T            
  

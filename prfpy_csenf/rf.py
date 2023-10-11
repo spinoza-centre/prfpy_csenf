@@ -218,7 +218,8 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     return_curve    : bool, return the curve as well (default false)
     '''
     # How many RFs are we making?
-    if not isinstance(width_r, np.ndarray)     :
+    # if not isinstance(width_r, np.ndarray)     :
+    if len(width_r) == 1:
         n_RFs = 1
     else:
         n_RFs = width_r.shape[0] # all RF parameters should be the same length
