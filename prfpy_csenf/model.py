@@ -899,8 +899,8 @@ class CSenFModel(Model):
     
     def create_grid_predictions(self,
                                 width_r, 
-                                sf0, 
-                                maxC, 
+                                SFp, 
+                                CSp, 
                                 width_l,
                                 crf_exp, # crf_exp
                                 hrf_1=None,
@@ -924,8 +924,8 @@ class CSenFModel(Model):
                 hrf_2 = hrf_2 * np.ones(n_predictions)
 
         prediction_params = np.array([width_r,
-                                      sf0,
-                                      maxC,
+                                      SFp,
+                                      CSp,
                                       width_l,
                                       crf_exp, 
                                       1.0*np.ones(n_predictions),
@@ -937,8 +937,8 @@ class CSenFModel(Model):
 
     def return_prediction(self,
                           width_r,
-                          sf0,
-                          maxC,
+                          SFp,
+                          CSp,
                           width_l,                          
                           crf_exp,
                           beta,
@@ -954,8 +954,8 @@ class CSenFModel(Model):
         Parameters
         ----------
         width_r   *** float
-        sf0   *** float
-        maxC   *** float
+        SFp   *** float
+        CSp   *** float
         width_l   *** float
         crf_exp *** float
         beta : float
@@ -980,8 +980,8 @@ class CSenFModel(Model):
             log_SF_grid=self.stimulus.log_SF_grid, 
             CON_S_grid=self.stimulus.CON_S_grid, 
             width_r=width_r, 
-            sf0=sf0, 
-            maxC=maxC, 
+            SFp=SFp, 
+            CSp=CSp, 
             width_l=width_l,
             crf_exp=crf_exp,
             )

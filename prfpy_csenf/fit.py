@@ -1893,8 +1893,8 @@ class CSenFFitter(Fitter):
 
     def grid_fit(self,
                  width_r_grid, 
-                 sf0_grid, 
-                 maxC_grid, 
+                 SFp_grid, 
+                 CSp_grid, 
                  width_l_grid,
                  crf_exp_grid,
                  verbose=False,
@@ -1912,10 +1912,10 @@ class CSenFFitter(Fitter):
         ----------
         width_r_grid : 1D ndarray
             array of width_r values in grid
-        sf0_grid : 1D ndarray
-            array of sf0 values in grid
-        maxC_grid : 1D ndarray
-            array of maxC values in a grid
+        SFp_grid : 1D ndarray
+            array of SFp values in grid
+        CSp_grid : 1D ndarray
+            array of CSp values in a grid
         width_l_grid : 1D ndarray
             array of width_l values in a grid 
         crf_exp_grid : 1D ndarray
@@ -1949,27 +1949,27 @@ class CSenFFitter(Fitter):
         """
         # setting up grid for params
         if hrf_1_grid is None or hrf_2_grid is None:
-            width_r, sf0, maxC, width_l, crf_exp =  np.meshgrid(width_r_grid, sf0_grid, maxC_grid, width_l_grid, crf_exp_grid)
+            width_r, SFp, CSp, width_l, crf_exp =  np.meshgrid(width_r_grid, SFp_grid, CSp_grid, width_l_grid, crf_exp_grid)
             self.hrf_1 = None
             self.hrf_2 = None
         else:
-            width_r, sf0, maxC, width_l, crf_exp, hrf_1, hrf_2 =  np.meshgrid(
-                width_r_grid, sf0_grid, maxC_grid, width_l_grid, crf_exp_grid, hrf_1_grid, hrf_2_grid
+            width_r, SFp, CSp, width_l, crf_exp, hrf_1, hrf_2 =  np.meshgrid(
+                width_r_grid, SFp_grid, CSp_grid, width_l_grid, crf_exp_grid, hrf_1_grid, hrf_2_grid
                 )
             self.hrf_1 = hrf_1.ravel()
             self.hrf_2 = hrf_2.ravel()                
         
         self.width_r  = width_r.ravel()           
-        self.sf0      = sf0.ravel()       
-        self.maxC     = maxC.ravel()       
+        self.SFp      = SFp.ravel()       
+        self.CSp     = CSp.ravel()       
         self.width_l  = width_l.ravel()
         self.crf_exp  = crf_exp.ravel()
         self.n_predictions = len(self.width_r)
 
         self.grid_predictions = self.model.create_grid_predictions(
             self.width_r,
-            self.sf0,
-            self.maxC,
+            self.SFp,
+            self.CSp,
             self.width_l,
             self.crf_exp,
             self.hrf_1,
@@ -2056,8 +2056,8 @@ class CSenFFitter(Fitter):
         if hrf_1_grid is not None and hrf_2_grid is not None:
             self.gridsearch_params = np.array([
                 self.width_r[max_rsqs],
-                self.sf0[max_rsqs],
-                self.maxC[max_rsqs],
+                self.SFp[max_rsqs],
+                self.CSp[max_rsqs],
                 self.width_l[max_rsqs],
                 self.crf_exp[max_rsqs],
                 self.best_fitting_beta,
@@ -2069,8 +2069,8 @@ class CSenFFitter(Fitter):
         else:
             self.gridsearch_params = np.array([
                 self.width_r[max_rsqs],
-                self.sf0[max_rsqs],
-                self.maxC[max_rsqs],
+                self.SFp[max_rsqs],
+                self.CSp[max_rsqs],
                 self.width_l[max_rsqs],
                 self.crf_exp[max_rsqs],
                 self.best_fitting_beta,

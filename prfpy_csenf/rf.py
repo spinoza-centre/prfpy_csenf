@@ -186,7 +186,7 @@ def gauss2D_logpolar(ecc, polar, mu=(1.0, 0.0), sigma=1.0, kappa=1.0):
 
 # ************************************************************************************************************
 # CSenF functions
-def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kwargs):
+def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, **kwargs):
     '''
     Python version written by Marcus Daghlian, translated from matlab original (credit Carlien Roelofzen) 
     Note now we generally fit CRF as well 
@@ -203,8 +203,8 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     width_r     : width of CSF function, curvature of the parabolic
                 function (larger values mean narrower function)
                 width is the right side of the curve (width_right)                
-    sf0        : spatial frequency with peak sensitivity  
-    maxC       : maximale contrast at sf0
+    SFp        : spatial frequency with peak sensitivity  
+    CSp       : maximale contrast at SFp
     width_l    : width of the left side of the CSF curve,
 
     Optional:
@@ -233,26 +233,26 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, sf0, maxC, width_l, **kw
     crf_exp = kwargs.get('crf_exp', 1)                  # 1
     scaling_factor = kwargs.get('scaling_factor', 1)    # 1
     return_curve = kwargs.get('return_curve', False)
-    # CONVERT sf0 and maxC
-    log_sf0 = np.log10(sf0)
-    log_maxC = np.log10(maxC)
+    # CONVERT SFp and CSp
+    log_SFp = np.log10(SFp)
+    log_CSp = np.log10(CSp)
     log_sfs_gr = np.moveaxis(np.tile(log_SF_grid, (n_RFs, 1,1)), 0, -1)
     con_s_gr = np.moveaxis(np.tile(CON_S_grid, (n_RFs, 1,1)), 0, -1) 
 
     # Reshape RF parameters 
 
     width_r     = np.reshape(width_r, (1,1,n_RFs))  
-    log_sf0     = np.reshape(log_sf0, (1,1,n_RFs))
-    log_maxC    = np.reshape(log_maxC, (1,1,n_RFs))
+    log_SFp     = np.reshape(log_SFp, (1,1,n_RFs))
+    log_CSp    = np.reshape(log_CSp, (1,1,n_RFs))
     width_l     = np.reshape(width_l, (1,1,n_RFs))
     crf_exp     = np.reshape(crf_exp, (1,1,n_RFs))    
     
-    # Split the stimulus space into L & R of the sf0
-    id_SF_left  = log_sfs_gr <  log_sf0
-    id_SF_right = log_sfs_gr >= log_sf0
+    # Split the stimulus space into L & R of the SFp
+    id_SF_left  = log_sfs_gr <  log_SFp
+    id_SF_right = log_sfs_gr >= log_SFp
     # Create the curves    
-    L_curve = L_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_l**2))
-    R_curve = R_curve = 10**(log_maxC - ((log_sfs_gr-log_sf0)**2) * (width_r**2))
+    L_curve = L_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_l**2))
+    R_curve = R_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_r**2))
     csf_curve = np.zeros_like(L_curve)
     csf_curve[id_SF_left] = L_curve[id_SF_left]
     csf_curve[id_SF_right] = R_curve[id_SF_right]

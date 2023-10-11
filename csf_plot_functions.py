@@ -16,16 +16,16 @@ def csf_plotter(prfpy_model, params, idx):
     # Create time series
     test_tc = prfpy_model.
 
-def get_csf_curves(log_SFs, width_r, sf0, maxC, width_l):    
+def get_csf_curves(log_SFs, width_r, SFp, CSp, width_l):    
     do_1_rf = False
     if isinstance(width_r, float):
         width_r  = np.array(width_r)
-        sf0  = np.array(sf0)
-        maxC  = np.array(maxC)
+        SFp  = np.array(SFp)
+        CSp  = np.array(CSp)
         width_l = np.array(width_l)
         do_1_rf = True
-    log_sf0 = np.log10(sf0)
-    log_maxC = np.log10(maxC)
+    log_SFp = np.log10(SFp)
+    log_CSp = np.log10(CSp)
     
     # Reshape for multiple RFs
     if not do_1_rf:
@@ -35,16 +35,16 @@ def get_csf_curves(log_SFs, width_r, sf0, maxC, width_l):
 
     #
     width_r     = width_r[...,np.newaxis]
-    log_sf0     = log_sf0[...,np.newaxis]
-    log_maxC    = log_maxC[...,np.newaxis]
+    log_SFp     = log_SFp[...,np.newaxis]
+    log_CSp    = log_CSp[...,np.newaxis]
     width_l     = width_l[...,np.newaxis]
 
-    id_L = log_SFs < log_sf0
-    id_R = log_SFs >= log_sf0
+    id_L = log_SFs < log_SFp
+    id_R = log_SFs >= log_SFp
 
     # L_curve 
-    L_curve = 10**(log_maxC - ((log_SFs - log_sf0)**2) * (width_l**2))
-    R_curve = 10**(log_maxC - ((log_SFs - log_sf0)**2) * (width_r**2))
+    L_curve = 10**(log_CSp - ((log_SFs - log_SFp)**2) * (width_l**2))
+    R_curve = 10**(log_CSp - ((log_SFs - log_SFp)**2) * (width_r**2))
 
     csf_curve = np.zeros_like(L_curve)
     csf_curve[id_L] = L_curve[id_L]
@@ -64,8 +64,8 @@ class AmbCSFPlotter(Prf1T1M):
         # self.csf_curves = get_csf_curves(
         #     np.log10(self.csf_stim.SFs),
         #     self.pd_params['width_r']            ,
-        #     self.pd_params['sf0'],
-        #     self.pd_params['maxC'],
+        #     self.pd_params['SFp'],
+        #     self.pd_params['CSp'],
         #     self.pd_params['width_l'])
         self.sf_x_lim = (.25,20) # sf
         self.con_y_lim = (1, 500) # con
@@ -75,8 +75,8 @@ class AmbCSFPlotter(Prf1T1M):
             log_SF_grid = self.csf_stim.log_SF_grid, 
             CON_S_grid = self.csf_stim.CON_S_grid, 
             width_r = self.pd_params['width_r'][idx], 
-            sf0 = self.pd_params['sf0'][idx], 
-            maxC = self.pd_params['maxC'][idx], 
+            SFp = self.pd_params['SFp'][idx], 
+            CSp = self.pd_params['CSp'][idx], 
             width_l = self.pd_params['width_l'][idx], 
             return_curve = True)
         return this_csf_rf, this_csf_curve        
@@ -91,8 +91,8 @@ class AmbCSFPlotter(Prf1T1M):
         #     log_SF_grid = self.csf_stim.log_SF_grid, 
         #     CON_S_grid = self.csf_stim.CON_S_grid, 
         #     width_r = self.pd_params['width_r'][idx], 
-        #     sf0 = self.pd_params['sf0'][idx], 
-        #     maxC = self.pd_params['maxC'][idx], 
+        #     SFp = self.pd_params['SFp'][idx], 
+        #     CSp = self.pd_params['CSp'][idx], 
         #     width_l = self.pd_params['width_l'][idx], 
         #     return_curve = True)
         this_csf_rf, this_csf_curve = self.return_csf_rf_curve(idx)
@@ -247,8 +247,8 @@ class AmbCSFPlotter(Prf1T1M):
             log_SF_grid = np.log10(sf_grid), 
             CON_S_grid = con_grid, 
             width_r = self.pd_params['width_r'][idx], 
-            sf0 = self.pd_params['sf0'][idx], 
-            maxC = self.pd_params['maxC'][idx], 
+            SFp = self.pd_params['SFp'][idx], 
+            CSp = self.pd_params['CSp'][idx], 
             width_l = self.pd_params['width_l'][idx], 
             return_curve = False)
         scat_col = ax.scatter(
