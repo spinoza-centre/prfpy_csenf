@@ -235,7 +235,9 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_e
 
     # How many RFs are we making?
     # if not isinstance(width_r, np.ndarray)     :
-    if isinstance(width_r, (float, int)):
+    if not hasattr(width_r, 'shape'):
+        n_RFs = 1
+    elif width_r.shape==():
         n_RFs = 1
     else:
         n_RFs = len(width_r)
@@ -269,8 +271,8 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_e
     id_SF_left  = log_sfs_gr <  log_SFp
     id_SF_right = log_sfs_gr >= log_SFp
     # Create the curves    
-    L_curve = L_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_l**2))
-    R_curve = R_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_r**2))
+    L_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_l**2))
+    R_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_r**2))
     csf_curve = np.zeros_like(L_curve)
     csf_curve[id_SF_left] = L_curve[id_SF_left]
     csf_curve[id_SF_right] = R_curve[id_SF_right]
@@ -286,105 +288,6 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_e
         c_curve = 100/csf_curve     # from contrast sensitivity -> contrast        
         # c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
         csf_rfs = scaling_factor * ((con_gr**crf_exp) / (con_gr**crf_exp + c_curve**crf_exp))
-
-    elif edge_type=='binary':
-        # Simple binary version. Contrast level below the curve is 1, anything above it is 0
-        csf_rfs = con_s_gr<=csf_curve
-
-    # Reshape...
-    csf_rfs = np.moveaxis(csf_rfs, -1, 0)
-
-    if return_curve:
-        return csf_rfs, csf_curve[0,:,:]
-
-    return csf_rfs
-
-
-
-
-def csenf_exponential_BU(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, **kwargs):
-    '''
-    Python version written by Marcus Daghlian, translated from matlab original (credit Carlien Roelofzen) 
-    Note now we generally fit CRF as well 
-
-    Takes a set of parameters determining the CSF (& CRF), and projects these onto a matrix representing log spatial frequency and contrast sensitivity
-    Conceptually akin to a receptive field, but in SF-contrast space, not visual (x,y) space
-    
-    inputs:
-    -------
-    
-    log_SF_grid        : grid of log10 SF values 
-    CON_S_grid         : grid of 100/contrast sensitivity values 
-    ***
-    width_r     : width of CSF function, curvature of the parabolic
-                function (larger values mean narrower function)
-                width is the right side of the curve (width_right)                
-    SFp        : spatial frequency with peak sensitivity  
-    CSp       : maximale contrast at SFp
-    width_l    : width of the left side of the CSF curve,
-
-    Optional:
-    width_l_type : 'default', 'ratio' (=width_r*0.5308)
-                'default' just accepts the width_l values input
-                If you want to fix the values to (=0.4480), it is better to do this outside the function 
-                'ratio' overwrites width_l to be a function of width_r. (=0.5308.*widht_right)
-    edge_type   : 'CRF' (default),'gauss', 'binary' 
-    crf_exp     : exponent for the smooth rf (CRF) default = 1.                 
-    scaling_factor : scaling factor for CRF, default = 1
-    return_curve    : bool, return the curve as well (default false)
-    '''
-    # How many RFs are we making?
-    # if not isinstance(width_r, np.ndarray)     :
-    if len(width_r) == 1:
-        n_RFs = 1
-    else:
-        n_RFs = width_r.shape[0] # all RF parameters should be the same length
-
-    # Setup kwargs
-    width_l_type = kwargs.get('width_l_type', 'default')
-    if width_l_type == 'ratio': 
-        print('CHANGING WIDTH L')
-        width_l = width_r * 0.4480
-    edge_type = kwargs.get('edge_type', 'CRF')
-    crf_exp = kwargs.get('crf_exp', 1)                  # 1
-    scaling_factor = kwargs.get('scaling_factor', 1)    # 1
-    return_curve = kwargs.get('return_curve', False)
-    # CONVERT SFp and CSp
-    log_SFp = np.log10(SFp)
-    log_CSp = np.log10(CSp)
-    log_sfs_gr = np.moveaxis(np.tile(log_SF_grid, (n_RFs, 1,1)), 0, -1)
-    con_s_gr = np.moveaxis(np.tile(CON_S_grid, (n_RFs, 1,1)), 0, -1) 
-
-    # Reshape RF parameters 
-
-    width_r     = np.reshape(width_r, (1,1,n_RFs))  
-    log_SFp     = np.reshape(log_SFp, (1,1,n_RFs))
-    log_CSp    = np.reshape(log_CSp, (1,1,n_RFs))
-    width_l     = np.reshape(width_l, (1,1,n_RFs))
-    crf_exp     = np.reshape(crf_exp, (1,1,n_RFs))    
-    
-    # Split the stimulus space into L & R of the SFp
-    id_SF_left  = log_sfs_gr <  log_SFp
-    id_SF_right = log_sfs_gr >= log_SFp
-    # Create the curves    
-    L_curve = L_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_l**2))
-    R_curve = R_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_r**2))
-    csf_curve = np.zeros_like(L_curve)
-    csf_curve[id_SF_left] = L_curve[id_SF_left]
-    csf_curve[id_SF_right] = R_curve[id_SF_right]
-    # edge_type = 'binary'
-    if edge_type=='CRF':
-        # Smooth Contrast Response Function (CRF) 
-        # Standard Naka-Rushton function, as used by Wietske Zuiderbaan and Boynton (1999).
-        # >> R(C) = C^q / (C^q + Q^q) 
-        # >> Q determines where R=0.5 (we use the csf_curve)
-        # >> q determines the slope (see crf_exp)
-        # Note we want contrasts, not 100/contrast, so we need to do this... 
-        con_gr = 100/con_s_gr       # from contrast sensitivity -> contrast
-        c_curve = 100/csf_curve     # from contrast sensitivity -> contrast        
-        # c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
-        csf_rfs = scaling_factor * ((con_gr**crf_exp) / (con_gr**crf_exp + c_curve**crf_exp))
-
 
     elif edge_type=='binary':
         # Simple binary version. Contrast level below the curve is 1, anything above it is 0

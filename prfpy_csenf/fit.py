@@ -78,7 +78,7 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
     """
     if bounds is not None:
         assert len(bounds) == len(
-            start_params), "Unequal bounds and parameters"
+            start_params), f"Unequal bounds {len(bounds)} and parameters {len(start_params)}"
 
 
         if constraints is None:
@@ -911,10 +911,16 @@ class CSS_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.hrf_1[max_rsqs],
                 self.hrf_2[max_rsqs]]).T
-        else:
+        elif hasattr(self.model, 'hrf_params'): 
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.model.hrf_params[1] * np.ones(self.gridsearch_rsq_mask.sum()),
                 self.model.hrf_params[2] * np.ones(self.gridsearch_rsq_mask.sum())]).T
+        else: 
+            # Remove the HRF parameters (e.g., if we have a specificed HRF shape)
+            new_gs_params = np.zeros((self.gridsearch_params.shape[0], self.gridsearch_params.shape[1]-2))
+            new_gs_params[:,:-1] = self.gridsearch_params[:,:-3]
+            new_gs_params[:,-1] = self.gridsearch_params[:,-1]
+            self.gridsearch_params = new_gs_params
 
 class DoG_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
     """DoG_Iso2DGaussianFitter
@@ -1177,11 +1183,16 @@ class DoG_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.hrf_1[max_rsqs],
                 self.hrf_2[max_rsqs]]).T
-        else:
+        elif hasattr(self.model, 'hrf_params'): 
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.model.hrf_params[1] * np.ones(self.gridsearch_rsq_mask.sum()),
-                self.model.hrf_params[2] * np.ones(self.gridsearch_rsq_mask.sum())]).T     
-
+                self.model.hrf_params[2] * np.ones(self.gridsearch_rsq_mask.sum())]).T
+        else: 
+            # Remove the HRF parameters (e.g., if we have a specificed HRF shape)
+            new_gs_params = np.zeros((self.gridsearch_params.shape[0], self.gridsearch_params.shape[1]-2))
+            new_gs_params[:,:-1] = self.gridsearch_params[:,:-3]
+            new_gs_params[:,-1] = self.gridsearch_params[:,-1]
+            self.gridsearch_params = new_gs_params
 
 class Norm_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
     """Norm_Iso2DGaussianFitter
@@ -1617,11 +1628,16 @@ class Norm_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.hrf_1[max_rsqs],
                 self.hrf_2[max_rsqs]]).T
-        else:
+        elif hasattr(self.model, 'hrf_params'): 
             self.gridsearch_params[self.gridsearch_rsq_mask,-3:-1] = np.array([
                 self.model.hrf_params[1] * np.ones(self.gridsearch_rsq_mask.sum()),
                 self.model.hrf_params[2] * np.ones(self.gridsearch_rsq_mask.sum())]).T
-
+        else: 
+            # Remove the HRF parameters (e.g., if we have a specificed HRF shape)
+            new_gs_params = np.zeros((self.gridsearch_params.shape[0], self.gridsearch_params.shape[1]-2))
+            new_gs_params[:,:-1] = self.gridsearch_params[:,:-3]
+            new_gs_params[:,-1] = self.gridsearch_params[:,-1]
+            self.gridsearch_params = new_gs_params
 
         
         
