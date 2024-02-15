@@ -512,15 +512,26 @@ class Iso2DGaussianFitter(Fitter):
                 self.hrf_2[max_rsqs],
                 self.gridsearch_r2
             ]).T
-        else:
+        elif hasattr(self.model, 'hrf_params'):
+            # If we have specified hrf parameters in the model but we haven't fit them
             self.gridsearch_params = np.array([
                 self.mu_x[max_rsqs],
                 self.mu_y[max_rsqs],
                 self.sizes[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
-                # self.model.hrf_params[1] * np.ones(self.n_units),
-                # self.model.hrf_params[2] * np.ones(self.n_units),
+                self.model.hrf_params[1] * np.ones(self.n_units),
+                self.model.hrf_params[2] * np.ones(self.n_units),
+                self.gridsearch_r2
+            ]).T            
+        else:
+            # I.E in the case where we have specified the HRF inside the model
+            self.gridsearch_params = np.array([
+                self.mu_x[max_rsqs],
+                self.mu_y[max_rsqs],
+                self.sizes[max_rsqs],
+                self.best_fitting_beta,
+                self.best_fitting_baseline,
                 self.gridsearch_r2
             ]).T            
 
@@ -2082,7 +2093,8 @@ class CSenFFitter(Fitter):
                 self.hrf_2[max_rsqs],
                 self.gridsearch_r2
             ]).T
-        else:
+        elif hasattr(self.model, 'hrf_params'):
+            # If we have specified hrf parameters in the model but we haven't fit them
             self.gridsearch_params = np.array([
                 self.width_r[max_rsqs],
                 self.SFp[max_rsqs],
@@ -2091,8 +2103,19 @@ class CSenFFitter(Fitter):
                 self.crf_exp[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
-                # np.nan * np.ones(self.n_units),#self.model.hrf_params[1] * np.ones(self.n_units),
-                # np.nan * np.ones(self.n_units),#self.model.hrf_params[2] * np.ones(self.n_units),
+                self.model.hrf_params[1] * np.ones(self.n_units),
+                self.model.hrf_params[2] * np.ones(self.n_units),
                 self.gridsearch_r2
             ]).T            
- 
+        else:
+            # I.E in the case where we have specified the HRF inside the model
+            self.gridsearch_params = np.array([
+                self.width_r[max_rsqs],
+                self.SFp[max_rsqs],
+                self.CSp[max_rsqs],
+                self.width_l[max_rsqs],
+                self.crf_exp[max_rsqs],
+                self.best_fitting_beta,
+                self.best_fitting_baseline,
+                self.gridsearch_r2
+            ]).T            

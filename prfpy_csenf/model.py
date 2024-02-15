@@ -832,6 +832,7 @@ class CSenFModel(Model):
                  filter_predictions=False,
                  filter_type='dc',
                  filter_params={},
+                 edge_type='CRF',
                  **kwargs):
         """
 
@@ -851,10 +852,15 @@ class CSenFModel(Model):
         filter_predictions : boolean, optional
             whether to high-pass filter the predictions, default False
         filter_type, filter_params : see timecourse.py
+        
+        edge_type  : Which edge type to use in csenf_exponential
+        
+        
         """
         super().__init__(stimulus)
         self.__dict__.update(kwargs)
-
+        # CRF edge type
+        self.edge_type = edge_type
         # HRF 
         if isinstance(hrf, str):
             if hrf == 'direct':  # for use with anything like eCoG with instantaneous irf
@@ -984,6 +990,7 @@ class CSenFModel(Model):
             CSp=CSp, 
             width_l=width_l,
             crf_exp=crf_exp,
+            edge_type=self.edge_type,
             )
         # create the single rf
         dm = self.stimulus.design_matrix
