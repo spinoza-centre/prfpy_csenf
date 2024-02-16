@@ -185,11 +185,133 @@ def gauss2D_logpolar(ecc, polar, mu=(1.0, 0.0), sigma=1.0, kappa=1.0):
     return logpolar_Z / np.max(logpolar_Z)
 
 # ************************************************************************************************************
-# CSenF functions
+def nCSF_response_grid(SF_list, CON_list, width_r, SFp, CSp, width_l, crf_exp, **kwargs):
+    '''nCSF_response
+    Same as nCSF_response, but sometimes we want to use a grid
+    i.e., get responses across SF-contrast space    
+    '''
+    SF_grid, CON_grid = np.meshgrid(SF_list, CON_list)
+    ncsf_grid_shape = SF_grid.shape
+    ncsf_response = nCSF_response(
+        SF_grid.flatten(), CON_grid.flatten(), width_r, SFp, CSp, width_l, crf_exp, **kwargs        
+    )
+    ncsf_response = ncsf_response.reshape(ncsf_grid_shape[0], ncsf_grid_shape[1], len(width_r))
+    return ncsf_response
+
+def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs):
+    '''nCSF_response
+    Response of nCSF models with parameters width_r,SFp,CSp,width_l,crf_exp
+    To SF and contrast pairs at each time point in the sequence
+    Unconvolved with the HRF...    
+    '''
+    edge_type = kwargs.get('edge_type', 'CRF') # default CRF, other option is binary    
+    if not isinstance(width_r, np.ndarray):
+        width_r = np.atleast_1d(np.array(width_r))
+        SFp     = np.atleast_1d(np.array(SFp))
+        CSp     = np.atleast_1d(np.array(CSp))
+        width_l = np.atleast_1d(np.array(width_l))    
+        crf_exp = np.atleast_1d(np.array(crf_exp))
+
+    csenf_values = asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l)
+    # convert from contrast sensitivity to contrast threshold...
+    cthresh_values = 100/csenf_values
+
+    # Reshape nCSF parameters 
+    crf_exp = crf_exp.reshape(-1,1)#,1)
+    # Reshape stimulus sequence
+    CON_seq = CON_seq.reshape(1,-1)#,1)
+    # Reshape the csenf_values
+    # csenf_values = csenf_values[...,...,np.new]
+
+    # Now we have the csenf_values at each SF
+    if edge_type=='CRF':
+        # Smooth Contrast Response Function (CRF) 
+        # Simplified Naka-Rushton function
+        # >> R(C) = C^q / (C^q + Q^q) 
+        # >> Q determines where R=0.5 (we use the csf_curve)
+        # >> q determines the slope (see crf_exp)    
+        ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp))
+    elif edge_type=='binary':
+        # Everything below csenf is 1, above = 0
+        ncsf_response = (100/CON_seq)<=csenf_values
+
+    return ncsf_response
+
+def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l):
+    '''asymmetric_parabolic_CSF
+    The CSF component is parameterized as in Chung & Legge 2016 (DOI:10.1167/ iovs.15-18084) 
+    > parameters: width_r, SFp, CSp, width_l
+
+    
+    Parameters:
+    -------
+    SF_seq : numpy.ndarray
+        SF values 
+    CON_S_grid : numpy.ndarray
+        Grid of 100/contrast values
+    width_r : numpy.ndarray or float
+        Width of the CSF function, curvature of the parabolic function (larger values mean narrower function)
+    SFp : float
+        Spatial frequency with peak sensitivity
+    CSp : float
+        Maximal contrast at SFp
+    width_l : numpy.ndarray or float
+        Width of the left side of the CSF curve
+    
+    Returns:
+    -------
+    csf_curve : numpy.ndarray
+        Contrast sensitivity at each of the SFs in SF_list
+
+    '''
+
+    if not isinstance(width_r, np.ndarray):
+        width_r = np.atleast_1d(np.array(width_r))
+        SFp     = np.atleast_1d(np.array(SFp))
+        CSp     = np.atleast_1d(np.array(CSp))
+        width_l = np.atleast_1d(np.array(width_l))
+
+    # CONVERT SFp and CSp and SFs to log10 versions
+    log_SF_seq  = np.log10(SF_seq)
+    log_SFp = np.log10(SFp)
+    log_CSp = np.log10(CSp)
+    
+    # Reshape CSF parameters 
+    width_r     = width_r.reshape(-1,1)
+    log_SFp     = log_SFp.reshape(-1,1)
+    log_CSp     = log_CSp.reshape(-1,1)
+    width_l     = width_l.reshape(-1,1)
+    
+    # Reshape stimulus (orthogonal to the parameters)
+    log_SF_seq = log_SF_seq.reshape(1,-1)
+    # Split the stimulus space into L & R of the SFp
+    id_SF_left  = log_SF_seq <  log_SFp
+    id_SF_right = log_SF_seq >= log_SFp
+
+    # Create the curves    
+    L_curve = 10**(log_CSp - ((log_SF_seq-log_SFp)**2) * (width_l**2))
+    R_curve = 10**(log_CSp - ((log_SF_seq-log_SFp)**2) * (width_r**2))
+    csf_curve = np.zeros_like(L_curve)
+    csf_curve[id_SF_left] = L_curve[id_SF_left]
+    csf_curve[id_SF_right] = R_curve[id_SF_right]
+
+    return csf_curve
+
+
+
+
+
+# *************
 def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_exp, **kwargs):
     '''
     Takes a set of parameters determining the CSF (& CRF), and projects these onto a matrix representing log spatial frequency and contrast sensitivity
     Conceptually akin to a receptive field, but in SF-contrast space, not visual (x,y) space
+    
+    The CSF component is parameterized as in Chung & Legge 2016 (DOI:10.1167/ iovs.15-18084) 
+    > parameters: width_r, SFp, CSp, width_l
+    
+    The CRF component is parameterized as a simplified form of the Naka-Rushton function 
+    > parameters: crf_exp    
     
     Python version written by Marcus Daghlian, translated from matlab original (credit Carlien Roelofzen) 
 
@@ -227,7 +349,7 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_e
     width_l_type : str, optional (default='default')
         If 'ratio', width_l is computed as a ratio of width_r.
     edge_type : str, optional (default='CRF')
-        Type of edge function ('CRF', 'gauss', 'binary')
+        Type of edge function ('CRF', 'binary')
     scaling_factor : float, optional (default=1)
         Scaling factor for CRF
 
@@ -300,3 +422,4 @@ def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_e
         return csf_rfs, csf_curve[0,:,:]
 
     return csf_rfs
+

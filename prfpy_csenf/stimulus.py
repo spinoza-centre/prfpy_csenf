@@ -196,15 +196,9 @@ class CFStimulus(object):
 
 # ************************************************************************************************************
 # CSenF functions
-# (Contrast Sensitivity Function)
 class CSenFStimulus(object):
     """CSenFStimulus    
-    CSenF stimulus creates a design matrix, used for fitting with CSenF model    
-    * Actual stimuli presented to subjects are gratings of different spatial frequency and contrast levels
-    * Current implementation assumes discrete SF and contrast levels
-    * Design matrix is a binary matrix of SF levels x Contrast levels x Time
-    * i.e., if at timepoint x, the SF level=1, and the contrast level=2, then design_matrix[0,1]=1 Everywhere else=0
-    It also stores other useful information, which will be used in the CSenFModel class 
+    Puts all the stimulus information into a useful object (as with other prfpy functions)
 
     """
 
@@ -212,9 +206,10 @@ class CSenFStimulus(object):
                  SF_seq,
                  CON_seq,                
                  TR,
+                 discrete_levels=True,              
                  task_lengths=None,
                  task_names=None,
-                 late_iso_dict=None,                 
+                 late_iso_dict=None,   
                  ):
         """__init__
 
@@ -227,6 +222,8 @@ class CSenFStimulus(object):
             Sequence of contrast values in stimulus            
         TR : float
             Repetition time, in seconds
+        discrete_levels : bool
+            Are the contrast and SF levels discrete?
         
         Other info - mainly redundant, included for consistency with other prfpy components
         -------
@@ -240,9 +237,10 @@ class CSenFStimulus(object):
             The default is None.
         """
         # [1] Save input values
-        self.SF_seq     = SF_seq
-        self.CON_seq    = CON_seq
-        self.TR = TR
+        self.SF_seq             = SF_seq
+        self.CON_seq            = CON_seq
+        self.TR                 = TR
+        self.discrete_levels    = discrete_levels
         # *** legacy, mainly obsolete kept for consistency w/ other prfpy components ***
         self.task_lengths = task_lengths
         self.task_names = task_names
@@ -252,51 +250,57 @@ class CSenFStimulus(object):
         
         # [2] log versions
         self.log_SF_seq = np.log10(self.SF_seq)                
-        self.CON_S_seq  = 100/self.CON_seq # fix divide by zero        
-        
-        # [3] Get the unique values, sorted in ascending order, excluding 0
-        self.SFs = np.unique(self.SF_seq)
-        self.SFs = self.SFs[self.SFs!=0]
-        self.CONs = np.unique(self.CON_seq)
-        self.CONs = self.CONs[self.CONs!=0]        
-        self.log_SFs = np.log10(self.SFs)   # unique SF in log
-        self.CON_Ss = 100/self.CONs         # unique contrast sensitivity
-        # -> number of discrete levels (used for design matrix) and number of timepoints
-        self.n_SF   = self.SFs.shape[0]
-        self.n_CON  = self.CONs.shape[0]
+        self.CON_S_seq  = 100/self.CON_seq # fix divide by zero                
         self.n_TRs = SF_seq.shape[0]        
-        print(f'Number of unique SF levels: {self.n_SF}, {np.round(self.SFs, 3)}')
-        print(f'Number of unique CON levels: {self.n_CON}, {np.round(self.CONs, 3)}')
         print(f'Number of timepoints: {self.n_TRs}')
         
-        # Grids: true values. Used in making the RFs and CSF curves (see .rf.csenf_exponential)
-        self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)        
-        self.log_SF_grid, self.CON_S_grid = np.meshgrid(self.log_SFs, self.CON_Ss)
-        
-        # Grids: levels (1, 2, 3, etc.) Used in making the design matrix 
-        # >> 0 empty, 1 = lowest  SF, 2 = 2nd lowest  SF, etc.
-        # >> 0 empty, 1 = lowest CON, 2 = 2nd lowest CON, etc.
-        self.SF_grid_id, self.CON_grid_id = np.meshgrid(np.arange(1,self.n_SF+1), np.arange(1,self.n_CON+1)) 
-        # Create the sequences, but in terms of levels
-        self.SF_seq_id = np.zeros_like(self.SF_seq, dtype=int)
-        for i,SF in enumerate(self.SFs):
-            self.SF_seq_id[self.SF_seq==SF] = i+1 # Assign the level to the corresponding SF
-        self.CON_seq_id = np.zeros_like(self.CON_seq, dtype=int)
-        for i,CON in enumerate(self.CONs):
-            self.CON_seq_id[self.CON_seq==CON] = i+1
 
-        # Create the design matrix (n SFS, n CON, n Timepoints)
-        dm = np.zeros((self.n_CON, self.n_SF, self.n_TRs))
-        for i in range(self.n_TRs):
-            if self.CON_seq_id[i]!=0:
-                this_frame = (self.SF_grid_id==self.SF_seq_id[i]) & (self.CON_grid_id==self.CON_seq_id[i])
-                if this_frame.sum()==0:
-                    print(self.SF_seq[i], self.CON_seq[i])
-                    print('*** ERROR ***')
-                    
-                dm[:,:,i] = np.copy(this_frame)
-        
-        self.design_matrix = dm
+        # [3] If using discrete levels - get some extra useful info...
+        if self.discrete_levels:
+            # [3] Get the unique values, sorted in ascending order, excluding 0
+            self.SFs = np.unique(self.SF_seq)
+            self.SFs = self.SFs[self.SFs!=0]
+            self.CONs = np.unique(self.CON_seq)
+            self.CONs = self.CONs[self.CONs!=0]        
+            self.log_SFs = np.log10(self.SFs)   # unique SF in log
+            self.CON_Ss = 100/self.CONs         # unique contrast sensitivity
+            # -> number of discrete levels (used for design matrix) and number of timepoints
+            self.n_SF   = self.SFs.shape[0]
+            self.n_CON  = self.CONs.shape[0]
+            self.n_TRs = SF_seq.shape[0]        
+            print(f'Number of unique SF levels: {self.n_SF}, {np.round(self.SFs, 3)}')
+            print(f'Number of unique CON levels: {self.n_CON}, {np.round(self.CONs, 3)}')
+            
+            # Grids: true values. Used in making the RFs and CSF curves (see .rf.csenf_exponential)
+            self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)        
+            self.log_SF_grid, self.CON_S_grid = np.meshgrid(self.log_SFs, self.CON_Ss)
+
+            # Grids: levels (1, 2, 3, etc.) Used in making the design matrix 
+            # >> 0 empty, 1 = lowest  SF, 2 = 2nd lowest  SF, etc.
+            # >> 0 empty, 1 = lowest CON, 2 = 2nd lowest CON, etc.
+            self.SF_grid_id, self.CON_grid_id = np.meshgrid(np.arange(1,self.n_SF+1), np.arange(1,self.n_CON+1))         
+            # Create the sequences, but in terms of levels
+            self.SF_seq_id = np.zeros_like(self.SF_seq, dtype=int)
+            for i,SF in enumerate(self.SFs):
+                self.SF_seq_id[np.round(self.SF_seq,3)==np.round(SF,3)] = i+1 # Assign the level to the corresponding SF
+            
+            self.CON_seq_id = np.zeros_like(self.CON_seq, dtype=int)
+            for i,CON in enumerate(self.CONs):
+                self.CON_seq_id[self.CON_seq==CON] = i+1
+
+            # Create the design matrix (n SFS, n CON, n Timepoints)
+            dm = np.zeros((self.n_CON, self.n_SF, self.n_TRs))
+            for i in range(self.n_TRs):
+                if self.CON_seq_id[i]!=0:
+                    this_frame = (self.SF_grid_id==self.SF_seq_id[i]) & (self.CON_grid_id==self.CON_seq_id[i])
+                    if this_frame.sum()==0:
+                        print(self.SF_seq[i], self.CON_seq[i])
+                        print('*** ERROR ***')
+                        
+                    dm[:,:,i] = np.copy(this_frame)
+            
+            self.design_matrix = dm            
+
 
 
 

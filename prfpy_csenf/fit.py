@@ -272,7 +272,7 @@ class Fitter:
     def crossvalidate_fit(self,
                           test_data,
                           test_stimulus=None,
-                          single_hrf=True):
+                          single_hrf=False):
         """
         Simple function to crossvalidate results of previous iterative fitting.
        
@@ -532,8 +532,10 @@ class Iso2DGaussianFitter(Fitter):
                 self.sizes[max_rsqs],
                 self.best_fitting_beta,
                 self.best_fitting_baseline,
+                #np.ones(self.n_units) * np.nan, # ???
+                #np.ones(self.n_units) * np.nan, # ???
                 self.gridsearch_r2
-            ]).T            
+            ]).T         
 
        
 
@@ -630,11 +632,10 @@ class Extend_Iso2DGaussianFitter(Iso2DGaussianFitter):
             Rsq threshold for iterative fitting. Must be between 0 and 1.
         verbose : boolean, optional
             Whether to print output. The default is False.
-        starting_params : ndarray of size [units, model_params +1], optional
+        starting_params : ndarray of shape (n_units, n_params+1), optional
             Explicit start for minimization. The default is None.
-        bounds : list of tuples, optional
-            Bounds for parameter minimization. Must have the same
-            length as start_params. The default is None.
+        bounds : list of tuples of shape (n_params,2) or (n_units,n_params,2), optional
+            Bounds for parameter minimization. The default is None.
         args : dictionary, optional
             Further arguments passed to iterative_search. The default is {}.
         constraints: list of scipy.optimize.LinearConstraints and/or
@@ -1359,9 +1360,15 @@ class Norm_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):
             self.n_predictions = len(self.nb)
 
             #gaussian params case, either explicit or from previous fitter
-            if gaussian_params is not None and gaussian_params.shape == (
-                    self.n_units, 4):
+            if gaussian_params is not None:
+                #  and gaussian_params.shape == (self.n_units, 4):# ???
                 self.gaussian_params = gaussian_params.astype('float32')
+
+                # if self.use_previous_gaussian_fitter_hrf:
+
+                #     print("Using HRF from explicitly provided gaussian_params")
+                #     self.hrf_1 = gaussian_params[:, -3].astype('float32')
+                #     self.hrf_2 = gaussian_params[:, -2].astype('float32')
 
                 #back in the grid also for DN model, as gauss
                 if ecc_in_stim_range:

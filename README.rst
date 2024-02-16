@@ -1,8 +1,9 @@
-pRFpy_csenf
+prfpy_csenf
 ========
-Version of prfpy + contrast sensitivity functions...
+Version of prfpy with added functions to fit contrast sensitivity data
+Edited by Marcus Daghlian
 
-
+See example notebook for introduction
 ...
 pRFpy is a package that allows you to simulate 
 and fit population receptive field (pRF) parameters from time series data.
@@ -10,11 +11,7 @@ and fit population receptive field (pRF) parameters from time series data.
 
 To get started using these components in your own software, clone this repository, then run
 
-python installer.py
-
-this will try to install dependencies with conda, and if not possible, with pip. The only
 required dependencies are:
-
 numpy>=1.16
 scipy>=1.4
 statsmodels>=0.8
