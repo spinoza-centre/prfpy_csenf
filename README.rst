@@ -11,6 +11,8 @@ and fit population receptive field (pRF) parameters from time series data.
 
 To get started using these components in your own software, clone this repository, then run
 
+python installer.py
+
 required dependencies are:
 numpy>=1.16
 scipy>=1.4
