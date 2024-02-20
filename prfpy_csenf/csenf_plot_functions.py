@@ -15,7 +15,6 @@ from .stimulus import *
 # csenf_plot_functions.py
 # additional functions for plotting and post-processing of nCSF data
 
-from dag_prf_utils.utils import *
 # Example parameters 
 Chung_Legge_default = { # From Chung & Legge, 5 healthy controls... Used to normalize AUC
     'width_r' : 1.28,
@@ -161,9 +160,23 @@ class CSenFPlotter(object):
         #
         self.real_ts = kwargs.get('real_ts', None)
         self.prfpy_model = kwargs.get('prfpy_model', None)
+
         self.TR_in_s = kwargs.get('TR_in_s', 1.5)          
         self.edge_type = kwargs.get('edge_type', 'CRF')
-        #
+        
+        # SF list... cmap etc.
+        self.SF_list = kwargs.get('SF_list', np.array([ 0.5,  1.,  3.,   6.,  12.,  18. ]))
+        if self.prfpy_model is not None:
+            if self.prfpy_model.stimulus.discrete_levels:
+                self.SF_list = self.prfpy_model.stimulus.SFs        
+        SF_cmap = mpl.cm.__dict__['viridis']
+        SF_cnorm = mpl.colors.Normalize()
+        SF_cnorm.vmin, SF_cnorm.vmax = self.SF_list[0],self.SF_list[-1]*1.5 
+        self.SF_cols = {}
+        for iSF, vSF in enumerate(self.SF_list):
+            this_SF_col = SF_cmap(SF_cnorm(vSF))
+            self.SF_cols[vSF] = this_SF_col        
+        
         
         self.params_dd = {}
         for key in self.model_labels.keys():
@@ -207,7 +220,7 @@ class CSenFPlotter(object):
         '''
         if not isinstance(params_dict['width_r'], np.ndarray):
             for key in params_dict.keys():
-                params_dict[key] = np.atleast_1d(np.array(params_dict[key])).squeeze()
+                params_dict[key] = np.atleast_1d(np.array(params_dict[key]))#.squeeze()
 
         # if len(params_dict['width_r'].shape)==1:
         #     for key in params_dict.keys():
@@ -229,7 +242,7 @@ class CSenFPlotter(object):
             if ('hrf' in p) and (not self.incl_hrf):
                 continue
 
-            self.prf_params_np[:,self.model_labels[p]] = params_dict[p].squeeze()
+            self.prf_params_np[:,self.model_labels[p]] = params_dict[p]#.squeeze()
 
 
 
@@ -316,7 +329,7 @@ class CSenFPlotter(object):
                 vx_mask &= self.pd_params[p].lt(th_val[1])
             else:
                 print(f'Error, {comp} is not any of min, max, or bound')
-                sys.exit()
+                return 
         if hasattr(vx_mask, 'to_numpy'):
             vx_mask = vx_mask.to_numpy()
 
@@ -409,25 +422,15 @@ class CSenFPlotter(object):
         '''Calculate various stuff used when plotting the CSF
         '''
         csenf_stim = self.prfpy_model.stimulus
-        # ncsf_info  = self.pd_params.iloc[idx]
         ncsf_info = {}
         for key in self.pd_params.keys():
             # if not isinstance(ncsf_info[key], (list, np.ndarray)):
             # ncsf_info[key] = np.array([ncsf_info[key]])                
             ncsf_info[key] = self.pd_params[key][[idx]].to_numpy()
+        
         # [1] CSF in design matrix space:
-        ncsf_info['dm_nCSF'] = nCSF_response_grid(
-            SF_list = csenf_stim.SFs, 
-            CON_list  = csenf_stim.CONs,
-            width_r     = ncsf_info['width_r'], 
-            SFp         = ncsf_info['SFp'], 
-            CSp         = ncsf_info['CSp'], 
-            width_l     = ncsf_info['width_l'], 
-            crf_exp     = ncsf_info['crf_exp'],
-            edge_type   = self.edge_type,
-            )
         ncsf_info['part_csf_curve'] = asymmetric_parabolic_CSF(
-            SF_seq = csenf_stim.SFs, 
+            SF_seq = self.SF_list, 
             width_r     = ncsf_info['width_r'], 
             SFp         = ncsf_info['SFp'], 
             CSp         = ncsf_info['CSp'], 
@@ -435,7 +438,7 @@ class CSenFPlotter(object):
         ).squeeze()
 
         # [2] Smooth form of nCSF, i.e. not just sampling those points in stimulus
-        sf_grid = np.logspace(np.log10(csenf_stim.SFs[0]),np.log10(50), 50)
+        sf_grid = np.logspace(np.log10(self.SF_list[0]),np.log10(50), 50)
         con_grid = np.logspace(np.log10(.1),np.log10(100), 50)
         full_csf = nCSF_response_grid(
             SF_list     = sf_grid, 
@@ -486,16 +489,6 @@ class CSenFPlotter(object):
         do_text     = kwargs.get('do_text', True)
         do_stim_info = kwargs.get('do_stim_info', True)
         time_pt_col = kwargs.get('time_pt_col', '#42eff5')
-        # Colors for SFs
-        print(self.prfpy_model)
-        SF_list = self.prfpy_model.stimulus.SFs
-        SF_cmap = mpl.cm.__dict__['viridis']
-        SF_cnorm = mpl.colors.Normalize()
-        SF_cnorm.vmin, SF_cnorm.vmax = SF_list[0],SF_list[-1]*1.5 
-        SF_cols = {}
-        for iSF, vSF in enumerate(SF_list):
-            this_SF_col = SF_cmap(SF_cnorm(vSF))
-            SF_cols[vSF] = this_SF_col
 
         # Load the specified info 
         ncsf_info = self.csf_ts_plot_get_info(idx)
@@ -548,7 +541,7 @@ class CSenFPlotter(object):
                     id*TR_in_s+3*TR_in_s, 
                     SF_seq[id], 
                     label,
-                    color=SF_cols[SF_seq[id]],
+                    color=self.SF_cols[SF_seq[id]],
                     ha='center', va='bottom', ) 
                 
 
@@ -637,34 +630,26 @@ class CSenFPlotter(object):
 
         # *********** CRF  ***********
         # Contrast response function at different SFs 
-        SF_list = self.prfpy_model.stimulus.SFs
-        SF_cmap = mpl.cm.__dict__['viridis']
-        SF_cnorm = mpl.colors.Normalize()
-        SF_cnorm.vmin, SF_cnorm.vmax = SF_list[0],SF_list[-1]*1.5 
-        SF_cols = []
-
         crf_ax.set_title(f'CRF')    
         crf_ax.set_xlabel('contrast (%)')
         crf_ax.set_ylabel('fMRI response (a.u.)')
         contrasts = np.linspace(0,100,100)
-        for iSF, vSF in enumerate(SF_list):
+        for iSF, vSF in enumerate(self.SF_list):
             # Plot the CRF at each SF we sample in the stimulus
             # [1] Get the "Q" aka "C50" aka "semisaturation point"
             # -> i.e., where response=50%
             # -> we get this using the CSF curve
-            this_Q = ncsf_info['part_csf_curve'][iSF]
+            this_Q = 100/ncsf_info['part_csf_curve'][iSF]
             this_crf = ncsf_calculate_crf_curve(
                 crf_exp=ncsf_info['crf_exp'],
                 Q=this_Q, 
                 C=contrasts,
             )
-            this_SF_col = SF_cmap(SF_cnorm(vSF))
-            SF_cols.append(this_SF_col)
             crf_ax.plot(
                 contrasts, 
                 this_crf.squeeze(), 
                 alpha=0.8,
-                color=this_SF_col,
+                color=self.SF_cols[vSF],
                 label=f'{vSF:.1f}',
             )
 
@@ -690,17 +675,11 @@ class CSenFPlotter(object):
             )
         for item in leg.legendHandles:
             item.set_visible(False)        
-        for color,text in zip(SF_cols,leg.get_texts()):
+        for color,text in zip(self.SF_cols.values(),leg.get_texts()):
             text.set_color(color)        
         # ***********************************************************************
             
         # *********** ax 0,3: Time series ***********
-        
-        blorp = dag_get_rsq(
-            self.real_ts[idx,:],
-            ncsf_info['ts'][0,:],
-        )
-        print(blorp)
         ts_ax.plot(ncsf_info['ts'][0,:time_pt], color='g', marker="*", markersize=2, linewidth=5, alpha=0.8)        
         if self.real_ts is not None:
             ts_ax.plot(self.real_ts[idx,:time_pt], color='k', linestyle=':', marker='^', linewidth=3, alpha=0.8)

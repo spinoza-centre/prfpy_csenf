@@ -250,7 +250,7 @@ class CSenFStimulus(object):
         
         # [2] log versions
         self.log_SF_seq = np.log10(self.SF_seq)                
-        self.CON_S_seq  = 100/self.CON_seq # fix divide by zero                
+        self.CON_S_seq  = 100/self.CON_seq 
         self.n_TRs = SF_seq.shape[0]        
         print(f'Number of timepoints: {self.n_TRs}')
         

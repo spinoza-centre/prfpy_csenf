@@ -1036,7 +1036,7 @@ class CSenFModel(Model):
             crf_exp=crf_exp,
             edge_type=self.edge_type,
         )
-        if current_hrf != 'direct':
+        if not isinstance(current_hrf, str): # If not 'direct'
             tc = self.convolve_timecourse_hrf(tc, current_hrf)
 
         if not self.filter_predictions:
