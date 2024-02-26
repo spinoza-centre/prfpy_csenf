@@ -107,7 +107,7 @@ def ncsf_calculate_crf_curve(crf_exp, Q=20, C=np.linspace(0,100,100), **kwargs):
         crf_curve = ((C**crf_exp) / (C**crf_exp + Q**crf_exp))
     elif edge_type=='binary':
         # Everything below csenf is 1, above = 0
-        crf_curve = (100/C)<Q
+        crf_curve = C>Q
     return crf_curve
 
 # ********** PRF OBJECTS
@@ -160,9 +160,10 @@ class CSenFPlotter(object):
         #
         self.real_ts = kwargs.get('real_ts', None)
         self.prfpy_model = kwargs.get('prfpy_model', None)
-
         self.TR_in_s = kwargs.get('TR_in_s', 1.5)          
         self.edge_type = kwargs.get('edge_type', 'CRF')
+        if self.prfpy_model is not None:
+            self.edge_type = self.prfpy_model.edge_type
         
         # SF list... cmap etc.
         self.SF_list = kwargs.get('SF_list', np.array([ 0.5,  1.,  3.,   6.,  12.,  18. ]))
@@ -529,20 +530,20 @@ class CSenFPlotter(object):
             SF_ax.set_yticks([])
             # -> SF sequence
             SF_seq = self.prfpy_model.stimulus.SF_seq.copy()
-            # SF_seq[SF_seq==0] = np.nan
-            # Find indices where the values change ( & are not to 0)
-            change_indices = np.where((np.diff(SF_seq) != 0) & (SF_seq[1:] != 0))[0]
-            # Create a list of labels corresponding to the changed values
-            labels = [f'{value:0.1f}' for value in SF_seq[change_indices+1]]
-            labels = [value.split('.0')[0] for value in labels]
-            # Add text labels at the change points on the plot
-            for id, label in zip(change_indices + 1, labels):
-                SF_ax.text(
-                    id*TR_in_s+3*TR_in_s, 
-                    SF_seq[id], 
-                    label,
-                    color=self.SF_cols[SF_seq[id]],
-                    ha='center', va='bottom', ) 
+            if self.prfpy_model.stimulus.discrete_levels:
+                # Find indices where the values change ( & are not to 0)
+                change_indices = np.where((np.diff(SF_seq) != 0) & (SF_seq[1:] != 0))[0]
+                # Create a list of labels corresponding to the changed values
+                labels = [f'{value:0.1f}' for value in SF_seq[change_indices+1]]
+                labels = [value.split('.0')[0] for value in labels]
+                # Add text labels at the change points on the plot
+                for id, label in zip(change_indices + 1, labels):
+                    SF_ax.text(
+                        id*TR_in_s+3*TR_in_s, 
+                        SF_seq[id], 
+                        label,
+                        color=self.SF_cols[SF_seq[id]],
+                        ha='center', va='bottom', ) 
                 
 
             SF_ax.plot(ts_x, SF_seq, 'k', linestyle='', marker='_')                
@@ -644,6 +645,7 @@ class CSenFPlotter(object):
                 crf_exp=ncsf_info['crf_exp'],
                 Q=this_Q, 
                 C=contrasts,
+                edge_type=self.edge_type,
             )
             crf_ax.plot(
                 contrasts, 

@@ -237,7 +237,7 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
 
     return ncsf_response
 
-def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l):
+def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l, **kwargs):
     '''asymmetric_parabolic_CSF
     The CSF component is parameterized as in Chung & Legge 2016 (DOI:10.1167/ iovs.15-18084) 
     > parameters: width_r, SFp, CSp, width_l
