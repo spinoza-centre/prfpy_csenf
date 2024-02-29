@@ -246,7 +246,6 @@ class CSenFPlotter(object):
             self.prf_params_np[:,self.model_labels[p]] = params_dict[p]#.squeeze()
 
 
-
     def params_np_to_dict(self, params_np, **kwargs):
         '''
         '''
@@ -402,8 +401,6 @@ class CSenFPlotter(object):
         Input:
         ----------
         idx         int, which voxel to plot
-        Optional:
-        add_context bool, if True, then add the task, model, and voxel index
 
         Output:
         ----------
@@ -481,7 +478,9 @@ class CSenFPlotter(object):
             hrf_2       = hrf_2,
         )
         return ncsf_info
-
+    def prf_ts_plot(self, idx, time_pt=None, **kwargs):
+        self.csf_ts_plot(idx, time_pt, **kwargs)
+        
     def csf_ts_plot(self, idx, time_pt=None, **kwargs):
         '''csf_ts_plot
         Do a nice representation of the CSF timeseries model
