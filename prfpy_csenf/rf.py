@@ -195,7 +195,7 @@ def nCSF_response_grid(SF_list, CON_list, width_r, SFp, CSp, width_l, crf_exp, *
     ncsf_response = nCSF_response(
         SF_grid.flatten(), CON_grid.flatten(), width_r, SFp, CSp, width_l, crf_exp, **kwargs        
     )
-    ncsf_response = ncsf_response.reshape(ncsf_grid_shape[0], ncsf_grid_shape[1], len(width_r))
+    ncsf_response = ncsf_response.reshape(len(width_r), ncsf_grid_shape[0], ncsf_grid_shape[1],)
     return ncsf_response
 
 def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs):
