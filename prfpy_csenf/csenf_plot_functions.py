@@ -160,25 +160,16 @@ class CSenFPlotter(object):
         #
         self.real_ts = kwargs.get('real_ts', None)
         self.prfpy_model = kwargs.get('prfpy_model', None)
-        self.TR_in_s = kwargs.get('TR_in_s', 1.5)          
+        self.TR_in_s = kwargs.get('TR_in_s', 1 )          
         self.edge_type = kwargs.get('edge_type', 'CRF')
         if self.prfpy_model is not None:
             self.edge_type = self.prfpy_model.edge_type
+            self.prfpy_stim = self.prfpy_model.stimulus
+            self.TR_in_s = self.prfpy_stim.TR
         
         # SF list... cmap etc.
-        self.SF_list = kwargs.get('SF_list', np.array([ 0.5,  1.,  3.,   6.,  12.,  18. ]))
-        if self.prfpy_model is not None:
-            if self.prfpy_model.stimulus.discrete_levels:
-                self.SF_list = self.prfpy_model.stimulus.SFs        
-        SF_cmap = mpl.cm.__dict__['viridis']
-        SF_cnorm = mpl.colors.Normalize()
-        SF_cnorm.vmin, SF_cnorm.vmax = self.SF_list[0],self.SF_list[-1]*1.5 
-        self.SF_cols = {}
-        for iSF, vSF in enumerate(self.SF_list):
-            this_SF_col = SF_cmap(SF_cnorm(vSF))
-            self.SF_cols[vSF] = this_SF_col        
-        
-        
+        self._sort_SF_list(**kwargs)
+
         self.params_dd = {}
         for key in self.model_labels.keys():
             if ('hrf' in key) and not self.incl_hrf:
@@ -215,6 +206,42 @@ class CSenFPlotter(object):
 
         # Convert to PD           
         self.pd_params = pd.DataFrame(self.params_dd)
+
+    def _sort_SF_list(self, **kwargs):
+        self.SF_list = kwargs.get('SF_list', None)
+        self.SF_cmap_name = kwargs.get('SF_cmap', 'viridis')
+        if self.SF_list is None:
+            self.SF_list = np.array([ 0.5,  1.,  3.,   6.,  12.,  18. ])
+            if self.prfpy_model is not None:
+                if self.prfpy_model.stimulus.discrete_levels:
+                    self.SF_list = self.prfpy_model.stimulus.SFs        
+        self.SF_cmap = mpl.cm.__dict__[self.SF_cmap_name]
+        self.SF_cnorm = mpl.colors.Normalize()
+        self.SF_cnorm.vmin, self.SF_cnorm.vmax = self.SF_list[0],self.SF_list[-1] # *1.5 
+        self.SF_cols = {}
+        for iSF, vSF in enumerate(self.SF_list):
+            this_SF_col = self.SF_cmap(self.SF_cnorm(vSF))
+            self.SF_cols[vSF] = this_SF_col        
+
+    def _get_SF_cols(self, v):
+        closest_key = None
+        min_difference = float('inf')  # Initialize with infinity
+
+        for key in self.SF_cols.keys():
+            difference = abs(key - v)
+            if difference <= 0.1 and difference < min_difference:
+                min_difference = difference
+                closest_key = key
+        if closest_key is not None:
+            this_col = self.SF_cols[closest_key]
+        else:
+            this_col = None
+        return this_col
+
+    def _add_SF_colorbar(self, ax):        
+        cbar = plt.colorbar(plt.cm.ScalarMappable(norm=self.SF_cnorm, cmap=self.SF_cmap_name), ax=ax)
+        cbar.set_label('SF')
+
 
     def params_dict_to_np(self, params_dict):
         '''
@@ -436,8 +463,8 @@ class CSenFPlotter(object):
         ).squeeze()
 
         # [2] Smooth form of nCSF, i.e. not just sampling those points in stimulus
-        sf_grid = np.logspace(np.log10(self.SF_list[0]),np.log10(50), 50)
-        con_grid = np.logspace(np.log10(.1),np.log10(100), 50)
+        sf_grid = np.logspace(np.log10(self.SF_list[0]),np.log10(50), 100)
+        con_grid = np.logspace(np.log10(.1),np.log10(100), 100)
         full_csf = nCSF_response_grid(
             SF_list     = sf_grid, 
             CON_list    = con_grid,
@@ -478,9 +505,32 @@ class CSenFPlotter(object):
             hrf_2       = hrf_2,
         )
         return ncsf_info
-    def prf_ts_plot(self, idx, time_pt=None, **kwargs):
+    
+    def prf_ts_plot(self, idx, time_pt=None, **kwargs):    
         self.csf_ts_plot(idx, time_pt, **kwargs)
         
+    def return_predictions(self, idx=None):
+        if idx is None:
+            idx = np.ones(self.n_vox, dtype=bool)
+        if 'hrf_1' in self.pd_params.keys():
+            hrf_1 = self.pd_params['hrf_1'][idx]
+            hrf_2 = self.pd_params['hrf_2'][idx]
+        else:
+            hrf_1 = None            
+            hrf_2 = None
+        preds = self.prfpy_model.return_prediction(
+            width_r     = self.pd_params['width_r'][idx],
+            SFp         = self.pd_params['SFp'][idx],
+            CSp         = self.pd_params['CSp'][idx],
+            width_l     = self.pd_params['width_l'][idx],
+            crf_exp     = self.pd_params['crf_exp'][idx],
+            beta        = self.pd_params['amp_1'][idx],
+            baseline    = self.pd_params['bold_baseline'][idx],
+            hrf_1       = hrf_1,
+            hrf_2       = hrf_2,
+        )
+        return preds
+    
     def csf_ts_plot(self, idx, time_pt=None, **kwargs):
         '''csf_ts_plot
         Do a nice representation of the CSF timeseries model
@@ -489,15 +539,32 @@ class CSenFPlotter(object):
         do_text     = kwargs.get('do_text', True)
         do_stim_info = kwargs.get('do_stim_info', True)
         time_pt_col = kwargs.get('time_pt_col', '#42eff5')
-
+        do_2_row = kwargs.get('do_2_row', False)
+        dpi = kwargs.get('dpi', 100)
         # Load the specified info 
         ncsf_info = self.csf_ts_plot_get_info(idx)
         ts_x = np.arange(0, ncsf_info['ts'].shape[-1]) * TR_in_s
         
         # Set up figure
-        grow_by = 1.8
+        grow_by = kwargs.get('grow_by', 1.8)
         width_ratios = [2, 2, 6]        
-        if do_stim_info:
+        if do_2_row:
+            width_ratios = [2,2]
+            if do_stim_info:
+                height_ratios = [2,1,.5]
+            else:
+                height_ratios = [2,1]
+
+
+            fig = plt.figure(figsize=(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by), dpi=dpi)
+            gs = mpl.gridspec.GridSpec(len(height_ratios), len(width_ratios), width_ratios=width_ratios, height_ratios=height_ratios)
+            csf_ax = fig.add_subplot(gs[0, 0])
+            crf_ax = fig.add_subplot(gs[0, 1])
+            ts_ax = fig.add_subplot(gs[1, :])
+            if do_stim_info:
+                SF_ax = fig.add_subplot(gs[2, :])
+
+        elif do_stim_info:
             height_ratios = [2,1]
             fig,axs = plt.subplots(
                 nrows=len(height_ratios), ncols=len(width_ratios), 
@@ -508,6 +575,10 @@ class CSenFPlotter(object):
             axs[1][0].axis('off')
             axs[1][1].axis('off')
             SF_ax = axs[1][2]
+            csf_ax  = top_row[0]
+            crf_ax  = top_row[1]
+            ts_ax   = top_row[2]
+
         else:
             height_ratios = [2]
             fig,top_row = plt.subplots(
@@ -515,76 +586,126 @@ class CSenFPlotter(object):
                 gridspec_kw={'width_ratios': width_ratios, 'height_ratios':height_ratios},
                 figsize=(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by),
             )            
-        csf_ax  = top_row[0]
-        crf_ax  = top_row[1]
-        ts_ax   = top_row[2]
+            csf_ax  = top_row[0]
+            crf_ax  = top_row[1]
+            ts_ax   = top_row[2]
         
         # *********** ax -1,2: Stimulus info ***********
         if do_stim_info:
-            # Add the stimulus plots
-            SF_ax.set_yscale('log')
-            SF_ax.set_xlabel('time (s)')
-            SF_ax.set_ylabel('SF') # log SF', color='black')
-            SF_ax.yaxis.set_label_position('right')
-            SF_ax.set_yticks([])
-            # -> SF sequence
-            SF_seq = self.prfpy_model.stimulus.SF_seq.copy()
-            if self.prfpy_model.stimulus.discrete_levels:
-                # Find indices where the values change ( & are not to 0)
-                change_indices = np.where((np.diff(SF_seq) != 0) & (SF_seq[1:] != 0))[0]
-                # Create a list of labels corresponding to the changed values
-                labels = [f'{value:0.1f}' for value in SF_seq[change_indices+1]]
-                labels = [value.split('.0')[0] for value in labels]
-                # Add text labels at the change points on the plot
-                for id, label in zip(change_indices + 1, labels):
-                    SF_ax.text(
-                        id*TR_in_s+3*TR_in_s, 
-                        SF_seq[id], 
-                        label,
-                        color=self.SF_cols[SF_seq[id]],
-                        ha='center', va='bottom', ) 
-                
+            self.sub_plot_stim_info(
+                ax=SF_ax, ncsf_info=ncsf_info, 
+                time_pt=time_pt,kwargs=kwargs,
+            )
 
-            SF_ax.plot(ts_x, SF_seq, 'k', linestyle='', marker='_')                
-            # SF_ax.spines['right'].set_visible(False)
-            SF_ax.spines['top'].set_visible(False)
-
-
-            # -> contrast
-            con_seq = self.prfpy_model.stimulus.CON_seq.copy()
-            con_seq[con_seq==0] = np.nan
-            con_ax = SF_ax.twinx()                        
-            con_ax.plot(ts_x, con_seq, 'r')
-            # set ylabel to red, also yticks
-            con_ax.set_ylabel('contrast ', color='red', alpha=0.5)        
-            con_ax.set_yscale('log')
-            con_ax.tick_params(axis='y', colors='red')
-            con_ax.spines['right'].set_visible(False)
-            con_ax.spines['top'].set_visible(False)
-            con_ax.yaxis.set_label_position('left')
-            con_ax.yaxis.set_ticks_position('left')
-            # Add grey patches corresponding to the nan values in con_s_seq
-            y1 = np.ones_like(ts_x)*np.nanmin(con_seq)
-            y2 = np.ones_like(ts_x)*np.nanmax(con_seq)
-            con_ax.fill_between(ts_x, y1, y2, where=np.isnan(con_seq), facecolor='grey', alpha=0.5)
-            # set xlim
-            con_ax.set_xlim(0, ts_x[-1])    
-            if time_pt is not None:
-                con_ax.plot(
-                    (time_pt*TR_in_s, time_pt*TR_in_s), (y1[0], y2[0]),
-                    color=time_pt_col, linewidth=5, alpha=0.8)
-
-            # put x axis for con_s_ax and SF_ax at the top of the axis
-            # SF_ax.xaxis.tick_top()
-        # ***********************************************************************
-        # ***********************************************************************
-    
-        
-        # *********** ax 0,0: CSF curve + with imshow to display CRF curve ***********
-        # Scatter the points sampled
-        csf_ax.scatter(
-            self.prfpy_model.stimulus.SF_seq, 100/self.prfpy_model.stimulus.CON_seq, color='r', alpha=0.8
+        # CSF curve + with imshow to display CRF curve 
+        self.sub_plot_csf(
+            ax=csf_ax, ncsf_info=ncsf_info, 
+            time_pt=time_pt, kwargs=kwargs,           
         )
+
+        # CRF
+        self.sub_plot_crf(
+            ax=crf_ax, ncsf_info=ncsf_info, 
+            time_pt=time_pt, kwargs=kwargs,            
+        )        
+
+        # Time series
+        self.sub_plot_ts(
+            ax=ts_ax, ncsf_info=ncsf_info, 
+            time_pt=time_pt, kwargs=kwargs,       
+        )
+
+
+        if do_text:            
+            ncsf_txt = self.make_prf_str(
+                idx=idx, 
+                pid_list=['width_r', 'SFp', 'CSp', 'width_l', 'crf_exp', 'aulcsf', 'rsq' ]
+                )
+            ts_ax.text(1.35, 0.20, ncsf_txt, transform=ts_ax.transAxes, fontsize=10, va='center', ha='right', family='monospace',)
+        # ***********************************************************************
+        update_fig_fontsize(fig, new_font_size=1.2, font_multiply=True)
+        fig.set_tight_layout(True)
+
+        # return fig
+
+    def sub_plot_stim_info(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
+        time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+        if ncsf_info is None:
+            ncsf_info = self.csf_ts_plot_get_info(idx=idx)
+        ts_x = np.arange(0, ncsf_info['ts'].shape[-1]) * self.TR_in_s
+
+        SF_ax = ax
+        # Add the stimulus plots
+        SF_ax.set_yscale('log')
+        SF_ax.set_xlabel('time (s)')
+        SF_ax.set_ylabel('SF') # log SF', color='black')
+        SF_ax.yaxis.set_label_position('right')
+        SF_ax.set_yticks([])
+        # -> SF sequence
+        SF_seq = self.prfpy_model.stimulus.SF_seq.copy()
+        if self.prfpy_model.stimulus.discrete_levels:
+            # Find indices where the values change ( & are not to 0)
+            change_indices = np.where((np.diff(SF_seq) != 0) & (SF_seq[1:] != 0))[0]
+            # Create a list of labels corresponding to the changed values
+            labels = [f'{value:0.1f}' for value in SF_seq[change_indices+1]]
+            labels = [value.split('.0')[0] for value in labels]
+            # Add text labels at the change points on the plot
+            for id, label in zip(change_indices + 1, labels):
+                SF_ax.text(
+                    id*self.TR_in_s+3*self.TR_in_s, 
+                    SF_seq[id], 
+                    label,
+                    color=self._get_SF_cols(SF_seq[id]),
+                    ha='center', va='bottom', ) 
+            
+
+        SF_ax.plot(ts_x, SF_seq, 'k', linestyle='', marker='_')                
+        # SF_ax.spines['right'].set_visible(False)
+        SF_ax.spines['top'].set_visible(False)
+
+
+        # -> contrast
+        con_seq = self.prfpy_model.stimulus.CON_seq.copy()
+        con_seq[con_seq==0] = np.nan
+        con_ax = SF_ax.twinx()                        
+        con_ax.plot(ts_x, con_seq, 'r')
+        # set ylabel to red, also yticks
+        con_ax.set_ylabel('contrast ', color='red', alpha=0.5)        
+        con_ax.set_yscale('log')
+        con_ax.tick_params(axis='y', colors='red')
+        con_ax.spines['right'].set_visible(False)
+        con_ax.spines['top'].set_visible(False)
+        con_ax.yaxis.set_label_position('left')
+        con_ax.yaxis.set_ticks_position('left')
+        # Add grey patches corresponding to the nan values in con_s_seq
+        y1 = np.ones_like(ts_x)*np.nanmin(con_seq)
+        y2 = np.ones_like(ts_x)*np.nanmax(con_seq)
+        con_ax.fill_between(ts_x, y1, y2, where=np.isnan(con_seq), facecolor='grey', alpha=0.5)
+        # set xlim
+        con_ax.set_xlim(0, ts_x[-1])    
+        if time_pt is not None:
+            con_ax.plot(
+                (time_pt*self.TR_in_s, time_pt*self.TR_in_s), (y1[0], y2[0]),
+                color=self.time_pt_col, linewidth=5, alpha=0.8)
+
+        # put x axis for con_s_ax and SF_ax at the top of the axis
+        # SF_ax.xaxis.tick_top()
+
+    def sub_plot_csf(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
+        time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+        if ncsf_info is None:
+            ncsf_info = self.csf_ts_plot_get_info(idx=idx)
+        csf_ax = ax
+        # Scatter the points sampled
+        # csf_ax.scatter(
+        #     self.prfpy_model.stimulus.SF_seq, 100/self.prfpy_model.stimulus.CON_seq, color='r', alpha=0.8
+        # )
         csf_ax.plot(
             ncsf_info['sf_grid'][0,:],
             ncsf_info['full_csf_curve'].squeeze(),
@@ -596,8 +717,9 @@ class CSenFPlotter(object):
             100/ncsf_info['con_grid'].ravel(),
             c=ncsf_info['full_csf'].ravel(),
             vmin=0, vmax=1,
-            alpha=.1,
-            cmap='magma'
+            alpha=1,
+            cmap='magma',
+            lw=0, edgecolor=None,             
         )   
         if time_pt is not None:
             csf_ax.plot(
@@ -624,11 +746,16 @@ class CSenFPlotter(object):
         csf_ax.set_yticklabels(yticklabels)
         csf_ax.set_ylim(ylim)
         csf_ax.spines['right'].set_visible(False)
-        csf_ax.spines['top'].set_visible(False)
+        csf_ax.spines['top'].set_visible(False)        
 
-        # ***********************************************************************
-
-        # *********** CRF  ***********
+    def sub_plot_crf(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
+        time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+        if ncsf_info is None:
+            ncsf_info = self.csf_ts_plot_get_info(idx=idx)
+        crf_ax = ax
         # Contrast response function at different SFs 
         crf_ax.set_title(f'CRF')    
         crf_ax.set_xlabel('contrast (%)')
@@ -650,7 +777,7 @@ class CSenFPlotter(object):
                 contrasts, 
                 this_crf.squeeze(), 
                 alpha=0.8,
-                color=self.SF_cols[vSF],
+                color=self._get_SF_cols(vSF),
                 label=f'{vSF:.1f}',
             )
 
@@ -669,23 +796,31 @@ class CSenFPlotter(object):
         # 
         crf_ax.spines['right'].set_visible(False)
         crf_ax.spines['top'].set_visible(False)            
-        # crf_ax.legend()
-        leg = crf_ax.legend(
-            handlelength=0, handletextpad=0, fancybox=True,
-            bbox_to_anchor=(1.3, 1), loc='upper right',
-            )
-        for item in leg.legendHandles:
-            item.set_visible(False)        
-        for color,text in zip(self.SF_cols.values(),leg.get_texts()):
-            text.set_color(color)        
-        # ***********************************************************************
-            
-        # *********** ax 0,3: Time series ***********
+        if len(self.SF_cols) > 10:
+            self._add_SF_colorbar(crf_ax)
+        else:
+            leg = crf_ax.legend(
+                handlelength=0, handletextpad=0, fancybox=True,
+                bbox_to_anchor=(1.3, 1), loc='upper right',
+                )
+            for item in leg.legendHandles:
+                item.set_visible(False)        
+            for color,text in zip(self.SF_cols.values(),leg.get_texts()):
+                text.set_color(color)        
+    
+    def sub_plot_ts(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
+        time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+        if ncsf_info is None:
+            ncsf_info = self.csf_ts_plot_get_info(idx=idx)
+        ts_ax = ax
         ts_ax.plot(ncsf_info['ts'][0,:time_pt], color='g', marker="*", markersize=2, linewidth=5, alpha=0.8)        
         if self.real_ts is not None:
             ts_ax.plot(self.real_ts[idx,:time_pt], color='k', linestyle=':', marker='^', linewidth=3, alpha=0.8)
         ts_ax.set_xlim(0, ncsf_info['ts'].shape[-1])
-        ts_ax.set_title('Time series')
+        ts_ax.set_title('')
         ts_ax.plot((0,ncsf_info['ts'].shape[-1]), (0,0), 'k')   
         # Find the time for 0 stimulation, add grey patches
         id_no_stim = self.prfpy_model.stimulus.SF_seq==0.0
@@ -701,24 +836,6 @@ class CSenFPlotter(object):
             ts_ax.plot(ncsf_info['ts'][0,:], alpha=0)
             if self.real_ts is not None:
                 ts_ax.plot(self.real_ts[idx,:], alpha=0)
-
-        # ***********************************************************************
-
-        # *********** Bottom left Text ***********
-        
-        if do_text:            
-            ncsf_txt = self.make_prf_str(
-                idx=idx, 
-                pid_list=['width_r', 'SFp', 'CSp', 'width_l', 'crf_exp', 'aulcsf', 'rsq' ]
-                )
-            ts_ax.text(1.35, 0.20, ncsf_txt, transform=ts_ax.transAxes, fontsize=10, va='center', ha='right', family='monospace',)
-        # ***********************************************************************
-        update_fig_fontsize(fig, new_font_size=1.2, font_multiply=True)
-        fig.set_tight_layout(True)
-
-        # return fig
-
-
 
 
 
