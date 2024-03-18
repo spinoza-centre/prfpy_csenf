@@ -611,7 +611,7 @@ class CSenFPlotter(object):
 
         # Time series
         self.sub_plot_ts(
-            ax=ts_ax, ncsf_info=ncsf_info, 
+            ax=ts_ax, idx=idx, ncsf_info=ncsf_info, 
             time_pt=time_pt, kwargs=kwargs,       
         )
 
