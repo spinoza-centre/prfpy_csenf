@@ -271,7 +271,7 @@ class CSenFStimulus(object):
             print(f'Number of unique SF levels: {self.n_SF}, {np.round(self.SFs, 3)}')
             print(f'Number of unique CON levels: {self.n_CON}, {np.round(self.CONs, 3)}')
             
-            # Grids: true values. Used in making the RFs and CSF curves (see .rf.csenf_exponential)
+            # Grids: true values. Used in making the RFs and CSF curves (see .rf)
             self.SF_grid, self.CON_grid = np.meshgrid(self.SFs, self.CONs)        
             self.log_SF_grid, self.CON_S_grid = np.meshgrid(self.log_SFs, self.CON_Ss)
 

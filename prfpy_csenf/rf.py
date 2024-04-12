@@ -213,8 +213,6 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
         crf_exp = np.atleast_1d(np.array(crf_exp))
 
     csenf_values = asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l)
-    # convert from contrast sensitivity to contrast threshold...
-    cthresh_values = 100/csenf_values
 
     # Reshape nCSF parameters 
     crf_exp = crf_exp.reshape(-1,1)#,1)
@@ -222,8 +220,39 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
     CON_seq = CON_seq.reshape(1,-1)#,1)
     # Reshape the csenf_values
     # csenf_values = csenf_values[...,...,np.new]
+    ncsf_response = nCSF_apply_edge(
+        csenf_values=csenf_values,
+        crf_exp = crf_exp, 
+        CON_seq=CON_seq,
+        edge_type=edge_type,
+    )
+    # # Now we have the csenf_values at each SF
+    # if edge_type=='CRF':
+    #     # Smooth Contrast Response Function (CRF) 
+    #     # Simplified Naka-Rushton function
+    #     # >> R(C) = C^q / (C^q + Q^q) 
+    #     # >> Q determines where R=0.5 (we use the csf_curve)
+    #     # >> q determines the slope (see crf_exp)    
+    #     ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp))
+    # elif edge_type=='binary':
+    #     # Everything below csenf is 1, above = 0
+    #     ncsf_response = (100/CON_seq)<=csenf_values
+    # elif edge_type=='straight':
+    #     # Simply multiply the contrast by the sensitivity values
+    #     ncsf_response = (CON_seq / (cthresh_values/2))**crf_exp #/ csenf_values) ** crf_exp
 
-    # Now we have the csenf_values at each SF
+
+    return ncsf_response
+
+def nCSF_apply_edge(csenf_values, crf_exp, CON_seq, edge_type):
+    ''' Given the CSF and the contrasts presented, determine the response
+    > binary edge: all contrasts below sensitivity = 1, above = 0
+    > CRF naka rushton function applied
+    > ...
+    '''
+    # convert from contrast sensitivity to contrast threshold...
+    cthresh_values = 100/csenf_values
+    # Now we have the csenf_values at each SF    
     if edge_type=='CRF':
         # Smooth Contrast Response Function (CRF) 
         # Simplified Naka-Rushton function
@@ -234,6 +263,19 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
     elif edge_type=='binary':
         # Everything below csenf is 1, above = 0
         ncsf_response = (100/CON_seq)<=csenf_values
+    elif edge_type=='straight':        
+        # Straight line with 0=0, and 0.5=Q 
+        ncsf_response = (CON_seq / (cthresh_values*2)) 
+    elif edge_type=='css_compare':
+        # Straight line with 0=0, and 0.5=Q 
+        # Then exponent
+        ncsf_response = (CON_seq / (cthresh_values*2))  ** crf_exp
+    elif edge_type=='bound_slope':
+        # 0.5 = Q, slope is determined by crf_exp
+        # All values <0 =0, >1 = 1...
+        ncsf_response = ((CON_seq*crf_exp) / cthresh_values) - crf_exp + 0.5            
+        ncsf_response[ncsf_response<0] = 0
+        ncsf_response[ncsf_response>1] = 1        
 
     return ncsf_response
 

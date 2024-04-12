@@ -97,17 +97,27 @@ def ncsf_calculate_crf_curve(crf_exp, Q=20, C=np.linspace(0,100,100), **kwargs):
     '''ncsf_calculate_crf_curve
     To calculate the CRF derived curve 
     '''
-    edge_type = kwargs.get('edge_type', 'CRF')
-    if edge_type=='CRF':
-        # Smooth Contrast Response Function (CRF) 
-        # Simplified Naka-Rushton function
-        # >> R(C) = C^q / (C^q + Q^q) 
-        # >> Q determines where R=0.5 (we use the csf_curve)
-        # >> q determines the slope (see crf_exp)    
-        crf_curve = ((C**crf_exp) / (C**crf_exp + Q**crf_exp))
-    elif edge_type=='binary':
-        # Everything below csenf is 1, above = 0
-        crf_curve = C>Q
+    crf_curve = nCSF_apply_edge(
+        csenf_values=Q, 
+        crf_exp=crf_exp,
+        CON_seq=C, 
+        **kwargs
+    )
+    # edge_type = kwargs.get('edge_type', 'CRF')
+    # if edge_type=='CRF':
+    #     # Smooth Contrast Response Function (CRF) 
+    #     # Simplified Naka-Rushton function
+    #     # >> R(C) = C^q / (C^q + Q^q) 
+    #     # >> Q determines where R=0.5 (we use the csf_curve)
+    #     # >> q determines the slope (see crf_exp)    
+    #     crf_curve = ((C**crf_exp) / (C**crf_exp + Q**crf_exp))
+    # elif edge_type=='binary':
+    #     # Everything below csenf is 1, above = 0
+    #     crf_curve = C>Q
+    # elif edge_type=='straight':
+    #     crf_curve = (C/(Q/2))**crf_exp
+
+
     return crf_curve
 
 # ********** PRF OBJECTS
@@ -507,7 +517,8 @@ class CSenFPlotter(object):
         return ncsf_info
     
     def prf_ts_plot(self, idx, time_pt=None, **kwargs):    
-        self.csf_ts_plot(idx, time_pt, **kwargs)
+        return self.csf_ts_plot(idx, time_pt, **kwargs)
+
         
     def return_predictions(self, idx=None):
         if idx is None:
@@ -540,6 +551,7 @@ class CSenFPlotter(object):
         do_stim_info = kwargs.get('do_stim_info', True)
         time_pt_col = kwargs.get('time_pt_col', '#42eff5')
         do_2_row = kwargs.get('do_2_row', False)
+        return_fig = kwargs.get('return_fig', True)
         dpi = kwargs.get('dpi', 100)
         # Load the specified info 
         ncsf_info = self.csf_ts_plot_get_info(idx)
@@ -625,8 +637,8 @@ class CSenFPlotter(object):
         # ***********************************************************************
         update_fig_fontsize(fig, new_font_size=1.2, font_multiply=True)
         fig.set_tight_layout(True)
-
-        # return fig
+        if return_fig:
+            return fig
 
     def sub_plot_stim_info(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
         time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
@@ -716,7 +728,7 @@ class CSenFPlotter(object):
             ncsf_info['sf_grid'].ravel(),
             100/ncsf_info['con_grid'].ravel(),
             c=ncsf_info['full_csf'].ravel(),
-            vmin=0, vmax=1,
+            # vmin=0, vmax=1,
             alpha=1,
             cmap='magma',
             lw=0, edgecolor=None,             

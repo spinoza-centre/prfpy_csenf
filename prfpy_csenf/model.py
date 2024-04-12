@@ -897,7 +897,7 @@ class CSenFModel(Model):
             whether to high-pass filter the predictions, default False
         filter_type, filter_params : see timecourse.py
         
-        edge_type  : Which edge type to use in csenf_exponential. defaults is CRF (naka rushton)
+        edge_type  : Which edge type to use in defaults is CRF (naka rushton)
         
         
         """
