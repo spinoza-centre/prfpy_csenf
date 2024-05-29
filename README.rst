@@ -1,12 +1,23 @@
 prfpy_csenf
+
+
 ========
+
+
 Version of prfpy with added functions to fit contrast sensitivity data
-Edited by Marcus Daghlian
+
+Original prfpy package developed by Marco Aqil 
+
+Contrast sensitivity extensions developed by Marcus Daghlian
+
+Adapted from matlab versions developed by Carlien Roelofzen 
+
 
 See example notebook for introduction
+
 ...
-pRFpy is a package that allows you to simulate 
-and fit population receptive field (pRF) parameters from time series data.
+
+pRFpy is a package that allows you to simulate and fit population receptive field (pRF) parameters from time series data.
 
 
 To get started using these components in your own software, clone this repository, then run
