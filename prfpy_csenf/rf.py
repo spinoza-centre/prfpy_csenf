@@ -218,29 +218,13 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
     crf_exp = crf_exp.reshape(-1,1)#,1)
     # Reshape stimulus sequence
     CON_seq = CON_seq.reshape(1,-1)#,1)
-    # Reshape the csenf_values
-    # csenf_values = csenf_values[...,...,np.new]
+    # Apply the edge method 
     ncsf_response = nCSF_apply_edge(
         csenf_values=csenf_values,
         crf_exp = crf_exp, 
         CON_seq=CON_seq,
         edge_type=edge_type,
     )
-    # # Now we have the csenf_values at each SF
-    # if edge_type=='CRF':
-    #     # Smooth Contrast Response Function (CRF) 
-    #     # Simplified Naka-Rushton function
-    #     # >> R(C) = C^q / (C^q + Q^q) 
-    #     # >> Q determines where R=0.5 (we use the csf_curve)
-    #     # >> q determines the slope (see crf_exp)    
-    #     ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp))
-    # elif edge_type=='binary':
-    #     # Everything below csenf is 1, above = 0
-    #     ncsf_response = (100/CON_seq)<=csenf_values
-    # elif edge_type=='straight':
-    #     # Simply multiply the contrast by the sensitivity values
-    #     ncsf_response = (CON_seq / (cthresh_values/2))**crf_exp #/ csenf_values) ** crf_exp
-
 
     return ncsf_response
 
@@ -338,130 +322,3 @@ def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l, **kwargs):
     csf_curve[id_SF_right] = R_curve[id_SF_right]
 
     return csf_curve
-
-
-
-
-
-# *************
-def csenf_exponential(log_SF_grid, CON_S_grid, width_r, SFp, CSp, width_l, crf_exp, **kwargs):
-    '''
-    Takes a set of parameters determining the CSF (& CRF), and projects these onto a matrix representing log spatial frequency and contrast sensitivity
-    Conceptually akin to a receptive field, but in SF-contrast space, not visual (x,y) space
-    
-    The CSF component is parameterized as in Chung & Legge 2016 (DOI:10.1167/ iovs.15-18084) 
-    > parameters: width_r, SFp, CSp, width_l
-    
-    The CRF component is parameterized as a simplified form of the Naka-Rushton function 
-    > parameters: crf_exp    
-    
-    Python version written by Marcus Daghlian, translated from matlab original (credit Carlien Roelofzen) 
-
-    Parameters:
-    -------
-    log_SF_grid : numpy.ndarray
-        Grid of log10 SF values
-    CON_S_grid : numpy.ndarray
-        Grid of 100/contrast values
-    width_r : numpy.ndarray or float
-        Width of the CSF function, curvature of the parabolic function (larger values mean narrower function)
-    SFp : float
-        Spatial frequency with peak sensitivity
-    CSp : float
-        Maximal contrast at SFp
-    width_l : numpy.ndarray or float
-        Width of the left side of the CSF curve
-    crf_exp : float, optional (default=1)
-        Exponent for the CRF
-
-    Optional Parameters: [LEGACY]
-    -------
-    return_curve : bool, optional (default=False)
-        Whether to return the curve in addition to the response matrix
-    
-    Returns:
-    -------
-    csf_rfs : numpy.ndarray
-        Response matrix
-    csf_curve : numpy.ndarray
-        Response curve (only if return_curve is True)
-
-    [LEGACY]
-    -------
-    width_l_type : str, optional (default='default')
-        If 'ratio', width_l is computed as a ratio of width_r.
-    edge_type : str, optional (default='CRF')
-        Type of edge function ('CRF', 'binary')
-    scaling_factor : float, optional (default=1)
-        Scaling factor for CRF
-
-    '''
-
-    # How many RFs are we making?
-    # if not isinstance(width_r, np.ndarray)     :
-    if not hasattr(width_r, 'shape'):
-        n_RFs = 1
-    elif width_r.shape==():
-        n_RFs = 1
-    else:
-        n_RFs = len(width_r)
-
-    return_curve = kwargs.get('return_curve', False) # Do we want the curve? (not for fitting)
-
-    # *** LEGACY OPTIONS ***
-    width_l_type = kwargs.get('width_l_type', 'default')
-    if width_l_type == 'ratio': 
-        print('CHANGING WIDTH L')
-        width_l = width_r * 0.4480
-    edge_type = kwargs.get('edge_type', 'CRF')
-    scaling_factor = kwargs.get('scaling_factor', 1)    # 1
-    # *** *** *** *** *** *** *** *** *** 
-
-    # CONVERT SFp and CSp
-    log_SFp = np.log10(SFp)
-    log_CSp = np.log10(CSp)
-    log_sfs_gr = np.moveaxis(np.tile(log_SF_grid, (n_RFs, 1,1)), 0, -1)
-    con_s_gr = np.moveaxis(np.tile(CON_S_grid, (n_RFs, 1,1)), 0, -1) 
-
-    # Reshape RF parameters 
-
-    width_r     = np.reshape(width_r, (1,1,n_RFs))  
-    log_SFp     = np.reshape(log_SFp, (1,1,n_RFs))
-    log_CSp    = np.reshape(log_CSp, (1,1,n_RFs))
-    width_l     = np.reshape(width_l, (1,1,n_RFs))
-    crf_exp     = np.reshape(crf_exp, (1,1,n_RFs))    
-    
-    # Split the stimulus space into L & R of the SFp
-    id_SF_left  = log_sfs_gr <  log_SFp
-    id_SF_right = log_sfs_gr >= log_SFp
-    # Create the curves    
-    L_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_l**2))
-    R_curve = 10**(log_CSp - ((log_sfs_gr-log_SFp)**2) * (width_r**2))
-    csf_curve = np.zeros_like(L_curve)
-    csf_curve[id_SF_left] = L_curve[id_SF_left]
-    csf_curve[id_SF_right] = R_curve[id_SF_right]
-
-    if edge_type=='CRF':
-        # Smooth Contrast Response Function (CRF) 
-        # Standard Naka-Rushton function, as used by Wietske Zuiderbaan and Boynton (1999).
-        # >> R(C) = C^q / (C^q + Q^q) 
-        # >> Q determines where R=0.5 (we use the csf_curve)
-        # >> q determines the slope (see crf_exp)
-        # Note we want contrasts, not 100/contrast, so we need to do this... 
-        con_gr = 100/con_s_gr       # from contrast sensitivity -> contrast
-        c_curve = 100/csf_curve     # from contrast sensitivity -> contrast        
-        # c_curve[np.isnan(c_curve)] = np.inf     # dividing by 0! dirty fix here        
-        csf_rfs = scaling_factor * ((con_gr**crf_exp) / (con_gr**crf_exp + c_curve**crf_exp))
-
-    elif edge_type=='binary':
-        # Simple binary version. Contrast level below the curve is 1, anything above it is 0
-        csf_rfs = con_s_gr<=csf_curve
-
-    # Reshape...
-    csf_rfs = np.moveaxis(csf_rfs, -1, 0)
-
-    if return_curve:
-        return csf_rfs, csf_curve[0,:,:]
-
-    return csf_rfs
-
