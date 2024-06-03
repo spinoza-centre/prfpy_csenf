@@ -33,13 +33,33 @@ def error_function(
 
 
 def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
-                     bounds=None, constraints=None):
+                     bounds=None, constraints=None, minimize_args={}):
     """iterative_search
 
     Generic minimization function called by iterative_fit.
     Do not call this directly. Use iterative_fit instead.
 
-    [description]
+    Uses various optimization methods to find the best fit for a given model
+    and data. The model must provide a `return_prediction` method that
+    takes the parameters as arguments and returns a prediction.
+
+    Notes on optimization methods:
+
+    - Powell is used for unbounded optimization
+    - L-BFGS-B is used for bounded optimization
+    - trust-constr is used for bounded optimization with constraints
+
+    Additionally you can use any of the scipy.optimize.minimize methods by setting minimize_args
+    
+    Powell: "derivative-free" method
+        uses only function evaluations; does not require gradients or Hessians. It performs a series of unimodal one-dimensional minimizations along each vector of the directions set.
+
+    L-BFGS-B: "quasi-Newton" method, uses gradients; can handle bounds on parameters.
+        It approximates the inverse Hessian matrix, using the differences of gradients (in the case of L-BFGS-B, the inverse Hessian is approximated using only the most recent gradients). This makes it computationally efficient for large problems. But it is not as robust as the trust-region methods (i.e., can get stuck in local minima).
+        
+    trust-constr: "trust-region" also uses gradients; and approximates the Hessian matrix for a
+        local region of parameters space, with quadratic model of the objective function. It is more robust than L-BFGS-B, but can be slower for large problems. 
+
 
     Parameters
     ----------
@@ -64,6 +84,10 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
         length as start_params. The default is None.
     constraints: list of  scipy.optimize.LinearConstraints and/or
         scipy.optimize.NonLinearConstraints
+    minimize_args : dictionary, optional
+        If defined everything apart from [model, data, start_params, args] are ignored
+        You can set all the minimize options yourself
+        Including method, options, etc.
 
     Raises
     ------
@@ -76,35 +100,55 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
         first element: parameter values
         second element: rsq value
     """
+    # HAND SPECIFIED MINIMIZATION 
+    # Ignores all other arguments, apart from model, data, start_params, args
+    if len(minimize_args) > 0:
+        output = minimize(
+            error_function, 
+            start_params, 
+            args=(args, data, model.return_prediction),
+            **minimize_args
+        )
+
+        return np.nan_to_num(np.r_[output['x'], 1 -
+                (output['fun'])/(len(data) * data.var())])
+
+    # Bounded methods
+    # -> includes L-BFGS-B and trust-constr    
     if bounds is not None:
         assert len(bounds) == len(
             start_params), f"Unequal bounds {len(bounds)} and parameters {len(start_params)}"
 
-
+        
         if constraints is None:
+            # L-BFGS-B for no constraints 
             if verbose:
                 print('Performing bounded, unconstrained minimization (L-BFGS-B).')
 
-            output = minimize(error_function, start_params, bounds=bounds,
-                              args=(
-                                  args, data, model.return_prediction),
-                               method='L-BFGS-B',
-                              # default max line searches is 20
-                              options=dict(ftol=ftol,
-                                           maxls=40,
-                                           disp=verbose))
+            output = minimize(
+                error_function, 
+                start_params, 
+                bounds=bounds,
+                args=(args, data, model.return_prediction),
+                method='L-BFGS-B',
+                # default max line searches is 20
+                options=dict(ftol=ftol, maxls=40,disp=verbose)
+                )
         else:
+            # trust-constr for no constraints 
             if verbose:
                 print('Performing bounded, constrained minimization (trust-constr).')
 
-            output = minimize(error_function, start_params, bounds=bounds,
-                              args=(args, data,
-                                    model.return_prediction),
-                              method='trust-constr',
-                              constraints=constraints,
-                              tol=ftol,
-                              options=dict(xtol=xtol,
-                                           disp=verbose))
+            output = minimize(
+                error_function, 
+                start_params, 
+                bounds=bounds,
+                args=(args, data,model.return_prediction),
+                method='trust-constr',
+                constraints=constraints,
+                tol=ftol,
+                options=dict(xtol=xtol,disp=verbose)
+                )
 
         return np.nan_to_num(np.r_[output['x'], 1 -
                      (output['fun'])/(len(data) * data.var())])
@@ -178,7 +222,9 @@ class Fitter:
                       args={},
                       constraints=None,
                       xtol=1e-4,
-                      ftol=1e-4):
+                      ftol=1e-4,
+                      minimize_args={},                      
+                      ):
         """
         Generic function for iterative fitting. Does not need to be
         redefined for new models. It is sufficient to define
@@ -250,7 +296,9 @@ class Fitter:
                                               ftol=ftol,
                                               verbose=verbose,
                                               bounds=curr_bounds,
-                                              constraints=self.constraints)
+                                              constraints=self.constraints,
+                                              minimize_args=minimize_args,
+                                              )
                     for (data, start_params, curr_bounds) in zip(self.data[self.rsq_mask], self.starting_params[self.rsq_mask, :-1], self.bounds[self.rsq_mask]))
             else:
                 iterative_search_params = Parallel(self.n_jobs, verbose=verbose)(
@@ -262,7 +310,9 @@ class Fitter:
                                               ftol=ftol,
                                               verbose=verbose,
                                               bounds=None,
-                                              constraints=self.constraints)
+                                              constraints=self.constraints,
+                                              minimize_args=minimize_args,
+                                              )
                     for (data, start_params) in zip(self.data[self.rsq_mask], self.starting_params[self.rsq_mask, :-1]))            
             
             self.iterative_search_params[self.rsq_mask] = np.array(
