@@ -875,6 +875,7 @@ class CSenFModel(Model):
                  filter_type='dc',
                  filter_params={},
                  edge_type='CRF',
+                 width_l_type='asymmetrical',
                  hrf_basis='SPM',
                  normalize_hrf=False,                 
                  ):
@@ -898,11 +899,21 @@ class CSenFModel(Model):
         filter_type, filter_params : see timecourse.py
         
         edge_type  : Which edge type to use in defaults is CRF (naka rushton)
+            See .rf.nCSF_apply_edge
+            other options are 'binary' etc. 
+
+        width_l_type : str, optional
+            Type of width_l to use; see .rf.nCSF_response
+            Defaults to 'asymmetric' (width_l is specified)             
+            other options are 'symmetric' (width_l = width_r) and 'relative' (width_l = width_r * width_l)
+            
+            
         
         
         """
         super().__init__(stimulus)
         self.edge_type = edge_type
+        self.width_l_type = width_l_type
         self.hrf_basis = hrf_basis
         self.normalize_hrf = normalize_hrf
         # HRF 
@@ -1035,6 +1046,7 @@ class CSenFModel(Model):
             width_l=width_l,
             crf_exp=crf_exp,
             edge_type=self.edge_type,
+            width_l_type=self.width_l_type,
         )
         if not isinstance(current_hrf, str): # If not 'direct'
             tc = self.convolve_timecourse_hrf(tc, current_hrf)

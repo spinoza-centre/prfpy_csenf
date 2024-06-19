@@ -54,6 +54,10 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
     Powell: "derivative-free" method
         uses only function evaluations; does not require gradients or Hessians. It performs a series of unimodal one-dimensional minimizations along each vector of the directions set.
 
+    Nelder-mead: "derivative-free" method
+        Simplex algorithm: in n dimensions, it constructs an n+1 simplex, and iteratively shrinks, expands, or reflects the simplex to find the minimum. 
+        i.e., pick the worst point in the simplex, and try to replace it with a better point. Informed by the other points in the simplex
+
     L-BFGS-B: "quasi-Newton" method, uses gradients; can handle bounds on parameters.
         It approximates the inverse Hessian matrix, using the differences of gradients (in the case of L-BFGS-B, the inverse Hessian is approximated using only the most recent gradients). This makes it computationally efficient for large problems. But it is not as robust as the trust-region methods (i.e., can get stuck in local minima).
         
@@ -101,14 +105,22 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
         second element: rsq value
     """
     # HAND SPECIFIED MINIMIZATION 
-    # Ignores all other arguments, apart from model, data, start_params, args
     if len(minimize_args) > 0:
-        output = minimize(
-            error_function, 
-            start_params, 
-            args=(args, data, model.return_prediction),
-            **minimize_args
-        )
+        if bounds is not None:
+            output = minimize(
+                error_function, 
+                start_params, 
+                bounds=bounds,
+                args=(args, data, model.return_prediction),            
+                **minimize_args
+            )
+        else:
+            output = minimize(
+                error_function, 
+                start_params, 
+                args=(args, data, model.return_prediction),            
+                **minimize_args
+            )
 
         return np.nan_to_num(np.r_[output['x'], 1 -
                 (output['fun'])/(len(data) * data.var())])
@@ -124,7 +136,7 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
             # L-BFGS-B for no constraints 
             if verbose:
                 print('Performing bounded, unconstrained minimization (L-BFGS-B).')
-
+                
             output = minimize(
                 error_function, 
                 start_params, 
@@ -668,7 +680,9 @@ class Extend_Iso2DGaussianFitter(Iso2DGaussianFitter):
                       args={},
                       constraints=None,
                       xtol=1e-4,
-                      ftol=1e-4):
+                      ftol=1e-4,
+                      minimize_args={},
+                      ):
         """
         Iterative_fit for models building on top of the Gaussian. Does not need to be
         redefined for new models. It is sufficient to define either
@@ -727,7 +741,9 @@ class Extend_Iso2DGaussianFitter(Iso2DGaussianFitter):
                               args=args,
                               constraints=constraints,
                               xtol=xtol,
-                              ftol=ftol)
+                              ftol=ftol,
+                              minimize_args={},
+                              )
 
 
 class CSS_Iso2DGaussianFitter(Extend_Iso2DGaussianFitter):

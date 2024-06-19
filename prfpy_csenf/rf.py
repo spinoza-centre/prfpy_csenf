@@ -204,13 +204,19 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
     To SF and contrast pairs at each time point in the sequence
     Unconvolved with the HRF...    
     '''
-    edge_type = kwargs.get('edge_type', 'CRF') # default CRF, other option is binary    
+    edge_type = kwargs.get('edge_type', 'CRF')                # default CRF, other option is binary    
+    width_l_type = kwargs.get('width_l_type', 'asymmetric')   # Default is asymmetric, other option is symmetric or relative 
     if not isinstance(width_r, np.ndarray):
         width_r = np.atleast_1d(np.array(width_r))
         SFp     = np.atleast_1d(np.array(SFp))
         CSp     = np.atleast_1d(np.array(CSp))
         width_l = np.atleast_1d(np.array(width_l))    
         crf_exp = np.atleast_1d(np.array(crf_exp))
+    
+    if width_l_type=='symmetric':
+        width_l = width_r
+    elif width_l_type=='relative':
+        width_l = width_r * width_l
 
     csenf_values = asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l)
 
@@ -230,9 +236,34 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
 
 def nCSF_apply_edge(csenf_values, crf_exp, CON_seq, edge_type):
     ''' Given the CSF and the contrasts presented, determine the response
-    > binary edge: all contrasts below sensitivity = 1, above = 0
-    > CRF naka rushton function applied
-    > ...
+    
+    Practically we want 2 properties from our "edge" function:
+    1. response = 0.5 when contrast = contrast threshold (i.e., csenf_values)    
+    2. The slope of the function should be determined by the crf_exp parameter
+    In addition it is useful if the function is bounded between 0 and 1 (to prevent trade off with CSp)
+
+    This can be implemented in many different ways:
+    'CRF' - A simplified form of the Naka-Rushton function
+        Where R(C) = C^q / (C^q + Q^q)
+        Fulfills both properties, and is bounded between 0 and 1
+        In addition, it can be related to a large literature of contrast response function
+        The only disadvantage is that the impact of slope parameter "q" or "crf_exp" will depend on the contrast sensitivity
+    'binary' - A binary edge function
+        Where all contrasts above the threshold are 1, and all below are 0
+        This simplest, but ignores, and ignores the crf_exp parameter, and will make the model less expressive 
+    
+    We also looked at other experimental options, but most are flawed in some way...
+    'sigmoid' - A sigmoid function
+        Where y = 1 / (1+exp(-q*(C-Q)))
+        This satisfies all the properties (fixed midpoint; variable slope; bounded between 0 and 1)
+        But it is less common than the Naka-Rushton function
+    'linear' - A straight line of y = mx [bound between 0 and 1]
+        Gives a "smooth" edge, with y=0.5 set by CSF but ignores the crf_exp parameter
+    'linear_v2' - A straight line of y = mx + c [bound between 0 and 1]
+        Gives a "smooth" edge, with y=0.5 set by CSF and slope by crf_exp
+    'css_compare_*' - A power law applied after the linear edge
+        This is to make the models more comparable with the CSS model (Kay et al., 2013)
+        But it changes the middle point (i.e., y=0.5)... 
     '''
     # convert from contrast sensitivity to contrast threshold...
     cthresh_values = 100/csenf_values
@@ -246,20 +277,46 @@ def nCSF_apply_edge(csenf_values, crf_exp, CON_seq, edge_type):
         ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp))
     elif edge_type=='binary':
         # Everything below csenf is 1, above = 0
-        ncsf_response = (100/CON_seq)<=csenf_values
-    elif edge_type=='straight':        
-        # Straight line with 0=0, and 0.5=Q 
-        ncsf_response = (CON_seq / (cthresh_values*2)) 
-    elif edge_type=='css_compare':
-        # Straight line with 0=0, and 0.5=Q 
-        # Then exponent
-        ncsf_response = (CON_seq / (cthresh_values*2))  ** crf_exp
-    elif edge_type=='bound_slope':
+        ncsf_response = (100/CON_seq)<=csenf_values        
+
+    # ***** EXPERIMENTAL *****
+    if edge_type=='sigmoid':
         # 0.5 = Q, slope is determined by crf_exp
-        # All values <0 =0, >1 = 1...
-        ncsf_response = ((CON_seq*crf_exp) / cthresh_values) - crf_exp + 0.5            
+        # But we use a sigmoid function
+        ncsf_response = 1 / (1+np.exp(-crf_exp * (CON_seq - cthresh_values))) 
+    
+    elif edge_type=='linear':                                     
+        # Straight line of y = mx 
+        # Where x is the contrast, and m is the slope set such that y = 0.5, for the contrast threshold values
+        # All values bound between 0 and 1
+        # NOTE - like binary, this ignores the crf_exp parameter
+        m_value = 1 / (cthresh_values*2)
+        ncsf_response = m_value * CON_seq
+        ncsf_response[ncsf_response>1] = 1  # Bound the values
+
+    elif edge_type=='linear_v2': 
+        # y = mx + c 
+        # Where m is the slope crf_exp
+        # and c = 0.5 - m*cthresh_values (i.e., forcing y=0.5 at x=threshold)
+        # & then all values <0 =0, >1 = 1...
+        c_value = 0.5 - (crf_exp * cthresh_values)
+        ncsf_response = (crf_exp * CON_seq) + c_value
+        # ncsf_response = ((CON_seq*crf_exp) / cthresh_values) - crf_exp + 0.5            
         ncsf_response[ncsf_response<0] = 0
-        ncsf_response[ncsf_response>1] = 1        
+        ncsf_response[ncsf_response>1] = 1
+
+    elif edge_type=='css_compare':
+        # We may want to compare compression with the CSS model (Kay et al., 2013) 
+        # i.e., is response compression the same across contrast as across size?
+        # To do this we might want to make the models more comparable? 
+        # [1] Like 'linear', but we set mid point to 1.0
+        m_value = 1 / cthresh_values # Mid point to 1.0
+        ncsf_response = ((m_value * CON_seq)**crf_exp) /2
+        # Bound the values? 
+        ncsf_response[ncsf_response<0] = 0
+        ncsf_response[ncsf_response>1] = 1  # Bound the values
+
+        # Could also bound the values before?
 
     return ncsf_response
 

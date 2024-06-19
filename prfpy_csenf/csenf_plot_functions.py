@@ -103,19 +103,6 @@ def ncsf_calculate_crf_curve(crf_exp, Q=20, C=np.linspace(0,100,100), **kwargs):
         CON_seq=C, 
         **kwargs
     )
-    # edge_type = kwargs.get('edge_type', 'CRF')
-    # if edge_type=='CRF':
-    #     # Smooth Contrast Response Function (CRF) 
-    #     # Simplified Naka-Rushton function
-    #     # >> R(C) = C^q / (C^q + Q^q) 
-    #     # >> Q determines where R=0.5 (we use the csf_curve)
-    #     # >> q determines the slope (see crf_exp)    
-    #     crf_curve = ((C**crf_exp) / (C**crf_exp + Q**crf_exp))
-    # elif edge_type=='binary':
-    #     # Everything below csenf is 1, above = 0
-    #     crf_curve = C>Q
-    # elif edge_type=='straight':
-    #     crf_curve = (C/(Q/2))**crf_exp
 
 
     return crf_curve
@@ -160,7 +147,8 @@ class CSenFPlotter(object):
             'hrf_2'         : 8,
             'rsq'           : -1,            
         }
-
+        self.incl_hrf = kwargs.get('incl_hrf', None)
+        self.incl_rsq = kwargs.get('incl_rsq', None)
         # Organize the parameters. If they are an numpy array or a dictionary
         if isinstance(prf_params, dict):
             self.params_dict_to_np(params_dict=prf_params)
@@ -265,14 +253,16 @@ class CSenFPlotter(object):
         #         params_dict[key] = params_dict[key].reshape(-1,1)
         
         self.n_vox = params_dict['width_r'].shape[0]                 
-        if 'rsq' not in params_dict.keys():
+        if ('rsq' not in params_dict.keys()) and (self.incl_rsq is None):
             self.incl_rsq=False
-        else:
+        elif self.incl_rsq is None:            
             self.incl_rsq=True
-        if 'hrf_1' not in params_dict.keys():
+
+        if ('hrf_1' not in params_dict.keys()) and (self.incl_hrf is None):
             self.incl_hrf=False
-        else: 
+        elif self.incl_hrf is None:
             self.incl_hrf=True
+        
         self.prf_params_np = np.zeros((self.n_vox, 7 + self.incl_rsq + 2*self.incl_hrf))
         for p in self.model_labels:
             if (p=='rsq') and (not self.incl_rsq):
@@ -297,21 +287,34 @@ class CSenFPlotter(object):
         # Sometimes not
         print(f'prf_params.shape[-1]={params_np.shape[-1]}')
         if params_np.shape[-1]==7: # params 0-6
-            print('hrf=default, rsq=not calculated')
-            self.incl_hrf = False
-            self.incl_rsq = False
+            hrf_message = 'hrf=default'
+            rsq_message = 'rsq=not calculated'
+
+            incl_hrf = False
+            incl_rsq = False
         elif params_np.shape[-1]==8: # params 0-6 + rsq 
-            print('hrf=default, rsq=params[:,7]')
-            self.incl_hrf = False
-            self.incl_rsq = True            
+            hrf_message = 'hrf=default'
+            rsq_message = 'rsq=params[:,7]'
+            incl_hrf = False
+            incl_rsq = True            
         elif params_np.shape[-1]==9: # params 0-6 + hrf_1, hrf_2
-            print('hrf=params[:,7,8], rsq=not calculated')
-            self.incl_hrf = True
-            self.incl_rsq = False
+            hrf_message = 'hrf=params[:,7,8]'
+            rsq_message = 'rsq=not calculated'
+            incl_hrf = True
+            incl_rsq = False
         elif params_np.shape[-1]==10: # Params 0-6 + hrf_1, hrf_2, rsq
-            print('hrf=params[:,7,8], rsq=params[:,9]')
-            self.incl_hrf = True
-            self.incl_rsq = True
+            hrf_message = 'hrf=params[:,7,8]'
+            rsq_message = 'rsq=params[:,9]'
+            incl_hrf = True
+            incl_rsq = True
+        
+        # Only overwrite if not already specified
+        if self.incl_hrf is None:
+            print(hrf_message)
+            self.incl_hrf = incl_hrf
+        if self.incl_rsq is None:
+            print(rsq_message)
+            self.incl_rsq = incl_rsq
         self.n_vox = self.prf_params_np.shape[0]
 
     def return_vx_mask(self, th={}):
@@ -733,6 +736,9 @@ class CSenFPlotter(object):
             cmap='magma',
             lw=0, edgecolor=None,             
         )   
+        # Add a colorbar
+        # cbar = plt.colorbar(plt.cm.ScalarMappable(cmap='magma'), ax=csf_ax)
+        # cbar.set_label('fMRI response (a.u.)')
         if time_pt is not None:
             csf_ax.plot(
                 self.prfpy_model.stimulus.SF_seq[time_pt],
@@ -761,7 +767,8 @@ class CSenFPlotter(object):
         csf_ax.spines['top'].set_visible(False)        
 
     def sub_plot_crf(self, ax=None, idx=None, ncsf_info=None, time_pt=None, **kwargs):
-        time_pt_col = kwargs.get('time_pt_col', '#42eff5')    
+        time_pt_col = kwargs.get('time_pt_col', '#42eff5')
+        do_log_contrast = kwargs.get('do_log_contrast', True)    
         if ax is None:
             plt.figure()
             ax = plt.gca()
@@ -772,7 +779,10 @@ class CSenFPlotter(object):
         crf_ax.set_title(f'CRF')    
         crf_ax.set_xlabel('contrast (%)')
         crf_ax.set_ylabel('fMRI response (a.u.)')
-        contrasts = np.linspace(0,100,100)
+        if do_log_contrast:
+            contrasts = np.logspace(np.log10(0.1), np.log10(100), 100)
+        else:
+            contrasts = np.linspace(0,100,100)
         for iSF, vSF in enumerate(self.SF_list):
             # Plot the CRF at each SF we sample in the stimulus
             # [1] Get the "Q" aka "C50" aka "semisaturation point"
@@ -795,13 +805,18 @@ class CSenFPlotter(object):
 
         # Put a grid on the axis (only the major ones)
         crf_ax.grid(which='both', axis='both', linestyle='--', alpha=0.5)
-        # ax.set_xscale('log')
+        if do_log_contrast:
+            ax.set_xscale('log')
+            crf_ax.set_xticks([0.1, 10,100])
+            crf_ax.set_xlim([0.1, 100]) # ax.set_xlim([0, 100])
+        else:
+            crf_ax.set_xticks([0, 50,100])
+            crf_ax.set_xlim([0, 100]) # ax.set_xlim([0, 100])            
+            
         # Make the axis square
         crf_ax.set_box_aspect(1) 
         # ax.set_title('CRF')
-        crf_ax.set_xticks([0, 50,100])
         crf_ax.set_yticks([0, 0.5, 1.0])
-        crf_ax.set_xlim([0, 100]) # ax.set_xlim([0, 100])
         crf_ax.set_ylim([0, 1])
         crf_ax.set_xlabel('contrast (%)')
         crf_ax.set_ylabel('fMRI response (a.u.)')
@@ -849,6 +864,83 @@ class CSenFPlotter(object):
             if self.real_ts is not None:
                 ts_ax.plot(self.real_ts[idx,:], alpha=0)
 
+    def return_csf_curve(self, idx, **kwargs):
+        '''return_csf_curve
+        Return the CSF curve for a voxel
+        '''
+        if isinstance(idx, int):
+            idx = [idx]        
+        SF_list = kwargs.get('SF_list', self.SF_list)
+        csf_curve = asymmetric_parabolic_CSF(
+            SF_seq      = SF_list,
+            width_r     = self.pd_params['width_r'][idx].to_numpy(), 
+            SFp         = self.pd_params['SFp'][idx].to_numpy(), 
+            CSp         = self.pd_params['CSp'][idx].to_numpy(), 
+            width_l     = self.pd_params['width_l'][idx].to_numpy(),                         
+        )
+        
+        return csf_curve
+
+    def return_csf_mat(self, idx, **kwargs):
+        if isinstance(idx, int):
+            idx = [idx]
+        SF_list = kwargs.get('SF_list', self.SF_list)
+        con_list = kwargs.get('con_list', np.logspace(np.log10(.25), np.log10(100), 100))
+        csf_mat = nCSF_response_grid(
+            SF_list     = SF_list, 
+            CON_list    = con_list,
+            width_r     = self.pd_params['width_r'][idx].to_numpy(), 
+            SFp         = self.pd_params['SFp'][idx].to_numpy(), 
+            CSp         = self.pd_params['CSp'][idx].to_numpy(), 
+            width_l     = self.pd_params['width_l'][idx].to_numpy(),                         
+            crf_exp     = self.pd_params['width_l'][idx].to_numpy(),
+            edge_type   = self.edge_type,        
+            )
+        return csf_mat
+    
+    def return_crf_curve(self, idx, **kwargs):
+        if isinstance(idx, int):
+            idx = [idx]
+        # if isinstance(idx, )
+        ow_Qs = kwargs.get('ow_Qs', False)
+        Qs_at_CSp = kwargs.get('Qs_at_CSp', False)
+        sf_for_crf = kwargs.get('sf_for_crf', 6.0)
+        con_list = kwargs.get('con_list', np.logspace(np.log10(.25), np.log10(100), 100))
+        crf_exp_vals = self.pd_params['crf_exp'][idx].to_numpy()
+        if ow_Qs:
+            # if ncsf_params['crf_exp'].shape[0]==1:
+            # return
+            if not hasattr(crf_exp_vals, 'shape'):
+                # print('if not hasattr(ncsf_params[crf_exp], shape):')
+                Qs = 20 * np.array([1])[...,np.newaxis]
+            elif crf_exp_vals.shape ==():
+                # print('elif ncsf_params[crf_exp].shape ==():')
+                Qs = 20 * np.array([1])#[...,np.newaxis]
+            else:
+                # print('else')
+                Qs = 20 * np.ones_like(crf_exp_vals)
+
+        elif Qs_at_CSp:
+            # Setelct
+            Qs = self.pd_params['CSp'][idx].to_numpy() 
+        else:
+            sf_grid = [0.5, sf_for_crf] # doesn't matter
+            csf_curve = asymmetric_parabolic_CSF(
+                SF_seq      = sf_grid, #csenf_stim.log_SF_grid, 
+                width_r     = self.pd_params['width_r'][idx].to_numpy(), 
+                SFp         = self.pd_params['SFp'][idx].to_numpy(), 
+                CSp         = self.pd_params['CSp'][idx].to_numpy(), 
+                width_l     = self.pd_params['width_l'][idx].to_numpy(), 
+                ).T         
+            Qs = 100/csf_curve[1,:]    
+
+        crf_curves = nCSF_apply_edge(
+            csenf_values=(100/Qs)[...,np.newaxis], 
+            crf_exp=crf_exp_vals[...,np.newaxis], 
+            CON_seq = con_list,
+            edge_type=self.edge_type,
+        )
+        return crf_curves
 
 
 # ************************** 
