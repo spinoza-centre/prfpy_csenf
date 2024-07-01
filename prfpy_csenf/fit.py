@@ -742,7 +742,7 @@ class Extend_Iso2DGaussianFitter(Iso2DGaussianFitter):
                               constraints=constraints,
                               xtol=xtol,
                               ftol=ftol,
-                              minimize_args={},
+                              minimize_args=minimize_args,
                               )
 
 
