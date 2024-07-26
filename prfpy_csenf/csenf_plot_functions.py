@@ -788,7 +788,8 @@ class CSenFPlotter(object):
             # [1] Get the "Q" aka "C50" aka "semisaturation point"
             # -> i.e., where response=50%
             # -> we get this using the CSF curve
-            this_Q = 100/ncsf_info['part_csf_curve'][iSF]
+            this_Q = ncsf_info['part_csf_curve'][iSF] 
+            # print(f'vSF={vSF}, this_Q={this_Q}')
             this_crf = ncsf_calculate_crf_curve(
                 crf_exp=ncsf_info['crf_exp'],
                 Q=this_Q, 
@@ -802,7 +803,7 @@ class CSenFPlotter(object):
                 color=self._get_SF_cols(vSF),
                 label=f'{vSF:.1f}',
             )
-
+        # bloop
         # Put a grid on the axis (only the major ones)
         crf_ax.grid(which='both', axis='both', linestyle='--', alpha=0.5)
         if do_log_contrast:
