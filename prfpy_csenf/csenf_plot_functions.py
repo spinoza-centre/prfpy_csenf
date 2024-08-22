@@ -923,7 +923,7 @@ class CSenFPlotter(object):
 
         elif Qs_at_CSp:
             # Setelct
-            Qs = self.pd_params['CSp'][idx].to_numpy() 
+            Qs = 100/self.pd_params['CSp'][idx].to_numpy() 
         else:
             sf_grid = [0.5, sf_for_crf] # doesn't matter
             csf_curve = asymmetric_parabolic_CSF(
@@ -933,7 +933,7 @@ class CSenFPlotter(object):
                 CSp         = self.pd_params['CSp'][idx].to_numpy(), 
                 width_l     = self.pd_params['width_l'][idx].to_numpy(), 
                 ).T         
-            Qs = 100/csf_curve[1,:]    
+            Qs = 100/csf_curve[1,:]  
 
         crf_curves = nCSF_apply_edge(
             csenf_values=(100/Qs)[...,np.newaxis], 
