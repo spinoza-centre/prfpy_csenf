@@ -297,40 +297,20 @@ def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l, **kwargs):
 def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
     ''' Given the CSF and the contrasts presented, determine the response
     Our default is "CRF" i.e., the Naka-Rushton function
+    R(C) = C^q / (C^q + Q^q) 
+    R(C=Q) = R(C=threshold) = 0.5
+    q determines the slope (crf_exp)
 
-    We do this in 2 stages:
-    1. Adjust the contrast values, based on the contrast sensitivity
-    - i.e., set 
-    2. Apply the chosen CRF 
-
-    This allows us to have 1 function applied to all SFs
-
-    Stage 1. can be implemented in 2 ways:
-    'logdiff' - [default] Normalize the contrast values to the threshold (mathematically equivalent to log difference)
-        C_adj = 10**(log10(C) - log10(Cthresh))
-        C_adj = C / Cthresh
-    'lindiff' - Just take the difference. Not suggested, because C is logarithmically spaced things can move in surprising ways...
-        C_adj = C - Cthresh
-
-    Stage 2. can be implemented in several ways:
-        Here I follow table 1 in Albrecht & Hamilton (1982)
-        Name            Equation in A&B                 Our implementation                
-        --------------------------------------------------------------------------------
-        'Hratio'        R(C) = C^q / (C^q + Q^q)        R(C) = C_adj^crf_exp / (C_adj^crf_exp + 1^crf_exp)
-        This is the default, and is the same as the "CRF" option
-        Note that logdiff + Hratio is the mathematically identical using the form in A&B 
-        --------------------------------------------------------------------------------        
-        'linear'        R(C) = A + B*C                  R(C) = C_adj 
-        Note we ignore the crf_exp parameter, and the amplitude is taken care outside of this function
-        --------------------------------------------------------------------------------
-        'log':          R(C) = A + B*log10(C)           R(C) = log10(C_adj)
-        Note we ignore the crf_exp parameter, and the amplitude is taken care outside of this function
-        --------------------------------------------------------------------------------
-        'power'         R(C) = A + C^B                  R(C) = C_adj^crf_exp
-        --------------------------------------------------------------------------------
-        In addition, I have included the binary form 
-        'binary'        n/a                             R(C) = 1 if C>Cthresh, 0 otherwise
-
+    Other ***EXPERIMENTAL*** versions here include:
+    - 'binary'      - Binary edge function (1 if C>Cthresh, 0 otherwise)
+    - 'sigmoid'     - Sigmoid function (R(C=threshold) = 0.5, slope determined by crf_exp)
+    - 'logsigmoid'  - As above, but with log10(C) instead of C
+    
+    From Albrecht & Hamilton (1982) table 1:
+    - 'ABlinear'    - Linear function       R(C) = A + B*C)
+    - 'ABlog'       - Log function          R(C) = A + B*log10(C)
+    - 'ABpower'     - Power function        R(C) = A + C^B
+    For all 'AB' I calculate A so that R(C=threshold) = 0.5
     '''
     # convert from contrast sensitivity to contrast threshold...
     cthresh_values = 100/csenf_values
@@ -355,6 +335,7 @@ def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
     elif edge_type=='logsigmoid':
         # But we use a sigmoid function
         ncsf_response = 1 / (1+np.exp(-crf_exp * (np.log10(CON_seq) - np.log10(cthresh_values))))
+    
     # Implement an interpretation of functions listed in A&B 1982 table 1
     # ... there are of course other ways of doing this
     # Here, I force the maximum to = 1
