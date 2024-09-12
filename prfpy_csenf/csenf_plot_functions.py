@@ -97,7 +97,7 @@ def ncsf_calculate_crf_curve(crf_exp, Q=20, C=np.linspace(0,100,100), **kwargs):
     '''ncsf_calculate_crf_curve
     To calculate the CRF derived curve 
     '''
-    crf_curve = nCSF_apply_edge(
+    crf_curve = nCSF_apply_crf(
         csenf_values=Q, 
         crf_exp=crf_exp,
         CON_seq=C, 
@@ -498,7 +498,7 @@ class CSenFPlotter(object):
         ncsf_info['sf_grid'],ncsf_info['con_grid']  = np.meshgrid(sf_grid, con_grid)
         ncsf_info['full_csf']          = full_csf
         ncsf_info['full_csf_curve']    = full_csf_curve
-
+        
         # Calculate the time series for the parameters
         if 'hrf_1' in ncsf_info.keys():
             hrf_1 = ncsf_info['hrf_1']
@@ -783,6 +783,7 @@ class CSenFPlotter(object):
             contrasts = np.logspace(np.log10(0.1), np.log10(100), 100)
         else:
             contrasts = np.linspace(0,100,100)
+        max_R = 0
         for iSF, vSF in enumerate(self.SF_list):
             # Plot the CRF at each SF we sample in the stimulus
             # [1] Get the "Q" aka "C50" aka "semisaturation point"
@@ -803,6 +804,7 @@ class CSenFPlotter(object):
                 color=self._get_SF_cols(vSF),
                 label=f'{vSF:.1f}',
             )
+            max_R = max(max_R, np.nanmax(this_crf.squeeze()))
         # bloop
         # Put a grid on the axis (only the major ones)
         crf_ax.grid(which='both', axis='both', linestyle='--', alpha=0.5)
@@ -813,12 +815,16 @@ class CSenFPlotter(object):
         else:
             crf_ax.set_xticks([0, 50,100])
             crf_ax.set_xlim([0, 100]) # ax.set_xlim([0, 100])            
-            
+        ax.set_yticklabels([0, '50%', 'MAX'])
         # Make the axis square
         crf_ax.set_box_aspect(1) 
         # ax.set_title('CRF')
-        crf_ax.set_yticks([0, 0.5, 1.0])
-        crf_ax.set_ylim([0, 1])
+        if max_R < 1:
+            crf_ax.set_yticks([0, 0.5, 1.0])
+            crf_ax.set_ylim([0, 1])
+        else:
+            crf_ax.set_yticks([0, max_R/2, max_R])
+            crf_ax.set_ylim([0, max_R])
         crf_ax.set_xlabel('contrast (%)')
         crf_ax.set_ylabel('fMRI response (a.u.)')
         # 
@@ -935,7 +941,7 @@ class CSenFPlotter(object):
                 ).T         
             Qs = 100/csf_curve[1,:]  
 
-        crf_curves = nCSF_apply_edge(
+        crf_curves = nCSF_apply_crf(
             csenf_values=(100/Qs)[...,np.newaxis], 
             crf_exp=crf_exp_vals[...,np.newaxis], 
             CON_seq = con_list,

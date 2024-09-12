@@ -899,7 +899,7 @@ class CSenFModel(Model):
         filter_type, filter_params : see timecourse.py
         
         edge_type  : Which edge type to use in defaults is CRF (naka rushton)
-            See .rf.nCSF_apply_edge
+            See .rf.nCSF_apply_crf
             other options are 'binary' etc. 
 
         width_l_type : str, optional

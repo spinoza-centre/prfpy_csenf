@@ -225,98 +225,12 @@ def nCSF_response(SF_seq, CON_seq, width_r, SFp, CSp, width_l, crf_exp, **kwargs
     # Reshape stimulus sequence
     CON_seq = CON_seq.reshape(1,-1)#,1)
     # Apply the edge method 
-    ncsf_response = nCSF_apply_edge(
+    ncsf_response = nCSF_apply_crf(
         csenf_values=csenf_values,
         crf_exp = crf_exp, 
         CON_seq=CON_seq,
         edge_type=edge_type,
     )
-
-    return ncsf_response
-
-def nCSF_apply_edge(csenf_values, crf_exp, CON_seq, edge_type):
-    ''' Given the CSF and the contrasts presented, determine the response
-    
-    Practically we want 2 properties from our "edge" function:
-    1. response = 0.5 when contrast = contrast threshold (i.e., csenf_values)    
-    2. The slope of the function should be determined by the crf_exp parameter
-    In addition it is useful if the function is bounded between 0 and 1 (to prevent trade off with CSp)
-
-    This can be implemented in many different ways:
-    'CRF' - A simplified form of the Naka-Rushton function
-        Where R(C) = C^q / (C^q + Q^q)
-        Fulfills both properties, and is bounded between 0 and 1
-        In addition, it can be related to a large literature of contrast response function
-        The only disadvantage is that the impact of slope parameter "q" or "crf_exp" will depend on the contrast sensitivity
-    'binary' - A binary edge function
-        Where all contrasts above the threshold are 1, and all below are 0
-        This simplest, but ignores, and ignores the crf_exp parameter, and will make the model less expressive 
-    
-    We also looked at other experimental options, but most are flawed in some way...
-    'sigmoid' - A sigmoid function
-        Where y = 1 / (1+exp(-q*(C-Q)))
-        This satisfies all the properties (fixed midpoint; variable slope; bounded between 0 and 1)
-        But it is less common than the Naka-Rushton function
-    'linear' - A straight line of y = mx [bound between 0 and 1]
-        Gives a "smooth" edge, with y=0.5 set by CSF but ignores the crf_exp parameter
-    'linear_v2' - A straight line of y = mx + c [bound between 0 and 1]
-        Gives a "smooth" edge, with y=0.5 set by CSF and slope by crf_exp
-    'css_compare_*' - A power law applied after the linear edge
-        This is to make the models more comparable with the CSS model (Kay et al., 2013)
-        But it changes the middle point (i.e., y=0.5)... 
-    '''
-    # convert from contrast sensitivity to contrast threshold...
-    cthresh_values = 100/csenf_values
-    # Now we have the csenf_values at each SF    
-    if edge_type=='CRF':
-        # Smooth Contrast Response Function (CRF) 
-        # Simplified Naka-Rushton function
-        # >> R(C) = C^q / (C^q + Q^q) 
-        # >> Q determines where R=0.5 (we use the csf_curve)
-        # >> q determines the slope (see crf_exp)    
-        ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp))
-    elif edge_type=='binary':
-        # Everything below csenf is 1, above = 0
-        ncsf_response = (100/CON_seq)<=csenf_values        
-
-    # ***** EXPERIMENTAL *****
-    if edge_type=='sigmoid':
-        # 0.5 = Q, slope is determined by crf_exp
-        # But we use a sigmoid function
-        ncsf_response = 1 / (1+np.exp(-crf_exp * (CON_seq - cthresh_values))) 
-    
-    elif edge_type=='linear':                                     
-        # Straight line of y = mx 
-        # Where x is the contrast, and m is the slope set such that y = 0.5, for the contrast threshold values
-        # All values bound between 0 and 1
-        # NOTE - like binary, this ignores the crf_exp parameter
-        m_value = 1 / (cthresh_values*2)
-        ncsf_response = m_value * CON_seq
-        ncsf_response[ncsf_response>1] = 1  # Bound the values
-
-    elif edge_type=='linear_v2': 
-        # y = mx + c 
-        # Where m is the slope crf_exp
-        # and c = 0.5 - m*cthresh_values (i.e., forcing y=0.5 at x=threshold)
-        # & then all values <0 =0, >1 = 1...
-        c_value = 0.5 - (crf_exp * cthresh_values)
-        ncsf_response = (crf_exp * CON_seq) + c_value
-        # ncsf_response = ((CON_seq*crf_exp) / cthresh_values) - crf_exp + 0.5            
-        ncsf_response[ncsf_response<0] = 0
-        ncsf_response[ncsf_response>1] = 1
-
-    elif edge_type=='css_compare':
-        # We may want to compare compression with the CSS model (Kay et al., 2013) 
-        # i.e., is response compression the same across contrast as across size?
-        # To do this we might want to make the models more comparable? 
-        # [1] Like 'linear', but we set mid point to 1.0
-        m_value = 1 / cthresh_values # Mid point to 1.0
-        ncsf_response = ((m_value * CON_seq)**crf_exp) /2
-        # Bound the values? 
-        ncsf_response[ncsf_response<0] = 0
-        ncsf_response[ncsf_response>1] = 1  # Bound the values
-
-        # Could also bound the values before?
 
     return ncsf_response
 
@@ -379,3 +293,106 @@ def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l, **kwargs):
     csf_curve[id_SF_right] = R_curve[id_SF_right]
 
     return csf_curve
+
+def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
+    ''' Given the CSF and the contrasts presented, determine the response
+    Our default is "CRF" i.e., the Naka-Rushton function
+
+    We do this in 2 stages:
+    1. Adjust the contrast values, based on the contrast sensitivity
+    - i.e., set 
+    2. Apply the chosen CRF 
+
+    This allows us to have 1 function applied to all SFs
+
+    Stage 1. can be implemented in 2 ways:
+    'logdiff' - [default] Normalize the contrast values to the threshold (mathematically equivalent to log difference)
+        C_adj = 10**(log10(C) - log10(Cthresh))
+        C_adj = C / Cthresh
+    'lindiff' - Just take the difference. Not suggested, because C is logarithmically spaced things can move in surprising ways...
+        C_adj = C - Cthresh
+
+    Stage 2. can be implemented in several ways:
+        Here I follow table 1 in Albrecht & Hamilton (1982)
+        Name            Equation in A&B                 Our implementation                
+        --------------------------------------------------------------------------------
+        'Hratio'        R(C) = C^q / (C^q + Q^q)        R(C) = C_adj^crf_exp / (C_adj^crf_exp + 1^crf_exp)
+        This is the default, and is the same as the "CRF" option
+        Note that logdiff + Hratio is the mathematically identical using the form in A&B 
+        --------------------------------------------------------------------------------        
+        'linear'        R(C) = A + B*C                  R(C) = C_adj 
+        Note we ignore the crf_exp parameter, and the amplitude is taken care outside of this function
+        --------------------------------------------------------------------------------
+        'log':          R(C) = A + B*log10(C)           R(C) = log10(C_adj)
+        Note we ignore the crf_exp parameter, and the amplitude is taken care outside of this function
+        --------------------------------------------------------------------------------
+        'power'         R(C) = A + C^B                  R(C) = C_adj^crf_exp
+        --------------------------------------------------------------------------------
+        In addition, I have included the binary form 
+        'binary'        n/a                             R(C) = 1 if C>Cthresh, 0 otherwise
+
+    '''
+    # convert from contrast sensitivity to contrast threshold...
+    cthresh_values = 100/csenf_values
+
+    if ('CRF' in edge_type) | ('Hratio' in edge_type):  
+        # DEFAULT = Naka-Rushton, aka H ratio
+        # >> R(C) = C^q / (C^q + Q^q) 
+        # >> Q determines where R=0.5 (we use the threshold values)
+        # >> q determines the slope (see crf_exp)    
+        # Mathematically equivalent to:
+        ncsf_response = ((CON_seq**crf_exp) / (CON_seq**crf_exp + cthresh_values**crf_exp)) 
+
+    # **** EXPERIMENTAL ****
+    elif 'binary' in edge_type:
+        # Binary edge function
+        # Everything below csenf is 1, above = 0
+        ncsf_response = CON_seq>=cthresh_values
+
+    elif edge_type=='sigmoid':
+        # But we use a sigmoid function
+        ncsf_response = 1 / (1+np.exp(-crf_exp * (CON_seq - cthresh_values)))         
+    elif edge_type=='logsigmoid':
+        # But we use a sigmoid function
+        ncsf_response = 1 / (1+np.exp(-crf_exp * (np.log10(CON_seq) - np.log10(cthresh_values))))
+    # Implement an interpretation of functions listed in A&B 1982 table 1
+    # ... there are of course other ways of doing this
+    # Here, I force the maximum to = 1
+    # R(C=threshold) = 0.5     
+    elif 'ABlinear' in edge_type:
+        # R(C) = A + B*C
+        # create intercept so that R(threshold) = 0.5 of maximum     
+        A_value = 0.5 - (crf_exp * cthresh_values)
+        ncsf_response = A_value + CON_seq*crf_exp
+        ncsf_response[ncsf_response<0] = 0
+        r100 = A_value + 100*crf_exp
+
+    elif 'ABlog' in edge_type:
+        # R(C) = A + B*log10(C)
+        A_value = 0.5 - (crf_exp * np.log10(cthresh_values))
+        ncsf_response = A_value + np.log10(CON_seq)*crf_exp
+        ncsf_response[ncsf_response<0] = 0
+        r100 = A_value + np.log10(100)*crf_exp
+        
+    elif 'ABpower' in edge_type:
+        # R(C) = A + C^B
+        # B is crf_exp
+        # R(threshold) = 0.5 of maximum
+        # Force maximum to = 1
+        A_value = 0.5 - (cthresh_values**crf_exp)
+        ncsf_response = A_value + CON_seq**crf_exp
+        ncsf_response[ncsf_response<0] = 0
+        r100 = A_value + 100**crf_exp
+
+    # If requested apply some kind of normalization 
+    if '_norm100' in edge_type:
+        ncsf_response = ncsf_response / r100
+    if '_bound1' in edge_type:
+        ncsf_response[ncsf_response>1] = 1
+    
+    # No negative values
+    ncsf_response[ncsf_response<0] = 0
+    # replace nans with 0    
+    ncsf_response[np.isnan(ncsf_response)] = 0
+
+    return ncsf_response
