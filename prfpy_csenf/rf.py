@@ -307,10 +307,10 @@ def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
     - 'logsigmoid'  - As above, but with log10(C) instead of C
     
     From Albrecht & Hamilton (1982) table 1:
-    - 'ABlinear'    - Linear function       R(C) = A + B*C)
-    - 'ABlog'       - Log function          R(C) = A + B*log10(C)
-    - 'ABpower'     - Power function        R(C) = A + C^B
-    For all 'AB' I calculate A so that R(C=threshold) = 0.5
+    - 'AHlinear'    - Linear function       R(C) = A + B*C)
+    - 'AHlog'       - Log function          R(C) = A + B*log10(C)
+    - 'AHpower'     - Power function        R(C) = A + C^B
+    For all 'AH' I calculate A so that R(C=threshold) = 0.5
     '''
     # convert from contrast sensitivity to contrast threshold...
     cthresh_values = 100/csenf_values
@@ -338,9 +338,8 @@ def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
     
     # Implement an interpretation of functions listed in A&B 1982 table 1
     # ... there are of course other ways of doing this
-    # Here, I force the maximum to = 1
     # R(C=threshold) = 0.5     
-    elif 'ABlinear' in edge_type:
+    elif 'AHlinear' in edge_type:
         # R(C) = A + B*C
         # create intercept so that R(threshold) = 0.5 of maximum     
         A_value = 0.5 - (crf_exp * cthresh_values)
@@ -348,14 +347,14 @@ def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
         ncsf_response[ncsf_response<0] = 0
         r100 = A_value + 100*crf_exp
 
-    elif 'ABlog' in edge_type:
+    elif 'AHlog' in edge_type:
         # R(C) = A + B*log10(C)
         A_value = 0.5 - (crf_exp * np.log10(cthresh_values))
         ncsf_response = A_value + np.log10(CON_seq)*crf_exp
         ncsf_response[ncsf_response<0] = 0
         r100 = A_value + np.log10(100)*crf_exp
         
-    elif 'ABpower' in edge_type:
+    elif 'AHpower' in edge_type:
         # R(C) = A + C^B
         # B is crf_exp
         # R(threshold) = 0.5 of maximum
