@@ -552,59 +552,38 @@ class CSenFPlotter(object):
         TR_in_s = self.TR_in_s
         do_text     = kwargs.get('do_text', True)
         do_stim_info = kwargs.get('do_stim_info', True)
+        do_crf = kwargs.get('do_crf', True)
         time_pt_col = kwargs.get('time_pt_col', '#42eff5')
-        do_2_row = kwargs.get('do_2_row', False)
+        fig = kwargs.get('fig', 'beep') #plt.figure())
+        fig.clear()
         return_fig = kwargs.get('return_fig', True)
         dpi = kwargs.get('dpi', 100)
         # Load the specified info 
         ncsf_info = self.csf_ts_plot_get_info(idx)
         ts_x = np.arange(0, ncsf_info['ts'].shape[-1]) * TR_in_s
-        
         # Set up figure
-        grow_by = kwargs.get('grow_by', 1.8)
-        width_ratios = [2, 2, 6]        
-        if do_2_row:
-            width_ratios = [2,2]
-            if do_stim_info:
-                height_ratios = [2,1,.5]
-            else:
-                height_ratios = [2,1]
+        # SIMPLIFIED 
 
-
-            fig = plt.figure(figsize=(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by), dpi=dpi)
-            gs = mpl.gridspec.GridSpec(len(height_ratios), len(width_ratios), width_ratios=width_ratios, height_ratios=height_ratios)
-            csf_ax = fig.add_subplot(gs[0, 0])
-            crf_ax = fig.add_subplot(gs[0, 1])
-            ts_ax = fig.add_subplot(gs[1, :])
-            if do_stim_info:
-                SF_ax = fig.add_subplot(gs[2, :])
-
-        elif do_stim_info:
-            height_ratios = [2,1]
-            fig,axs = plt.subplots(
-                nrows=len(height_ratios), ncols=len(width_ratios), 
-                gridspec_kw={'width_ratios': width_ratios, 'height_ratios':height_ratios},
-                figsize=(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by),
-            )
-            top_row = axs[0]
-            axs[1][0].axis('off')
-            axs[1][1].axis('off')
-            SF_ax = axs[1][2]
-            csf_ax  = top_row[0]
-            crf_ax  = top_row[1]
-            ts_ax   = top_row[2]
-
+        grow_by = kwargs.get('grow_by', 1.5)
+        if do_crf:
+            width_ratios = [2, 2, 6] 
         else:
-            height_ratios = [2]
-            fig,top_row = plt.subplots(
-                nrows=len(height_ratios), ncols=len(width_ratios), 
-                gridspec_kw={'width_ratios': width_ratios, 'height_ratios':height_ratios},
-                figsize=(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by),
-            )            
-            csf_ax  = top_row[0]
-            crf_ax  = top_row[1]
-            ts_ax   = top_row[2]
-        
+            width_ratios = [2, 6]
+        if do_stim_info:
+            height_ratios = [2,1]
+        else:
+            height_ratios = [1]
+        # Apply new size & dpi
+        fig.set_size_inches(sum(width_ratios)*grow_by, sum(height_ratios)*grow_by)
+        fig.set_dpi(dpi)
+        # Create axs
+        gs = mpl.gridspec.GridSpec(len(height_ratios), len(width_ratios), width_ratios=width_ratios, height_ratios=height_ratios)
+        csf_ax = fig.add_subplot(gs[0, 0])
+        ts_ax = fig.add_subplot(gs[0, -1])
+        if do_stim_info:
+            SF_ax = fig.add_subplot(gs[1, -1])
+        if do_crf:
+            crf_ax = fig.add_subplot(gs[0, 1])
         # *********** ax -1,2: Stimulus info ***********
         if do_stim_info:
             self.sub_plot_stim_info(
@@ -612,18 +591,17 @@ class CSenFPlotter(object):
                 time_pt=time_pt,kwargs=kwargs,
             )
 
-        # CSF curve + with imshow to display CRF curve 
+        # CSF curve + with imshow to display CRF curve         
         self.sub_plot_csf(
             ax=csf_ax, ncsf_info=ncsf_info, 
             time_pt=time_pt, kwargs=kwargs,           
         )
-
-        # CRF
-        self.sub_plot_crf(
-            ax=crf_ax, ncsf_info=ncsf_info, 
-            time_pt=time_pt, kwargs=kwargs,            
-        )        
-
+        if do_crf:
+            # CRF
+            self.sub_plot_crf(
+                ax=crf_ax, ncsf_info=ncsf_info, 
+                time_pt=time_pt, kwargs=kwargs,            
+            )        
         # Time series
         self.sub_plot_ts(
             ax=ts_ax, idx=idx, ncsf_info=ncsf_info, 
@@ -850,9 +828,9 @@ class CSenFPlotter(object):
         if ncsf_info is None:
             ncsf_info = self.csf_ts_plot_get_info(idx=idx)
         ts_ax = ax
-        ts_ax.plot(ncsf_info['ts'][0,:time_pt], color='g', marker="*", markersize=2, linewidth=5, alpha=0.8)        
+        ts_ax.plot(ncsf_info['ts'][0,:time_pt], color='g', marker="*", markersize=2, linewidth=3, alpha=0.8)        
         if self.real_ts is not None:
-            ts_ax.plot(self.real_ts[idx,:time_pt], color='k', linestyle=':', marker='^', linewidth=3, alpha=0.8)
+            ts_ax.plot(self.real_ts[idx,:time_pt], color='k', linestyle=':', marker='^', linewidth=1.5, alpha=0.8)
         ts_ax.set_xlim(0, ncsf_info['ts'].shape[-1])
         ts_ax.set_title('')
         ts_ax.plot((0,ncsf_info['ts'].shape[-1]), (0,0), 'k')   
@@ -865,7 +843,7 @@ class CSenFPlotter(object):
         if time_pt is not None:
             ts_ax.plot(
                 (time_pt, time_pt), (y1[0], y2[0]),
-                color=time_pt_col, linewidth=2, alpha=0.8)    
+                color=time_pt_col, linewidth=1, alpha=0.8)    
             # also plot a full invisible version, to keep ax dim...
             ts_ax.plot(ncsf_info['ts'][0,:], alpha=0)
             if self.real_ts is not None:
