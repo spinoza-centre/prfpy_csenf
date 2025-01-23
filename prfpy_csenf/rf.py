@@ -269,9 +269,9 @@ def asymmetric_parabolic_CSF(SF_seq, width_r, SFp, CSp, width_l, **kwargs):
         width_l = np.atleast_1d(np.array(width_l))
 
     # CONVERT SFp and CSp and SFs to log10 versions
-    log_SF_seq  = np.log10(SF_seq)
-    log_SFp = np.log10(SFp)
-    log_CSp = np.log10(CSp)
+    log_SF_seq  = np.log10(np.maximum(SF_seq, 1e-8)) # Avoid log(0)
+    log_SFp = np.log10(np.maximum(SFp, 1e-8))
+    log_CSp = np.log10(np.maximum(CSp, 1e-8))
     
     # Reshape CSF parameters 
     width_r     = width_r.reshape(-1,1)
@@ -313,7 +313,7 @@ def nCSF_apply_crf(csenf_values, crf_exp, CON_seq, edge_type):
     For all 'AH' I calculate A so that R(C=threshold) = 0.5
     '''
     # convert from contrast sensitivity to contrast threshold...
-    cthresh_values = 100/csenf_values
+    cthresh_values = 100/np.maximum(csenf_values, 1e-8) # Avoid divide by 0
 
     if ('CRF' in edge_type) | ('Hratio' in edge_type):  
         # DEFAULT = Naka-Rushton, aka H ratio
