@@ -35,6 +35,12 @@ def error_function(
 def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
                      bounds=None, constraints=None, minimize_args={}):
     """iterative_search
+    *** THIS IS DIFFERENT FROM PRFPY ORIGINAL ***
+    >> https://github.com/VU-Cog-Sci/prfpy/
+    >> "prfpy" all the previous stuff was removed (default fitters etc.)
+    >> my preference is to keep the default fitters and have backward compatibility - hence the minimize kwargs are optional        
+
+    *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** 
 
     Generic minimization function called by iterative_fit.
     Do not call this directly. Use iterative_fit instead.
@@ -42,14 +48,16 @@ def iterative_search(model, data, start_params, args, xtol, ftol, verbose=True,
     Uses various optimization methods to find the best fit for a given model
     and data. The model must provide a `return_prediction` method that
     takes the parameters as arguments and returns a prediction.
-
-    Notes on optimization methods:
-
+    
+    Originally prfpy would look at whether you have bounds, constraints etc. 
+    Then -> 
     - Powell is used for unbounded optimization
     - L-BFGS-B is used for bounded optimization
     - trust-constr is used for bounded optimization with constraints
-
+    
+    Now -> 
     Additionally you can use any of the scipy.optimize.minimize methods by setting minimize_args
+
     
     Powell: "derivative-free" method
         uses only function evaluations; does not require gradients or Hessians. It performs a series of unimodal one-dimensional minimizations along each vector of the directions set.
